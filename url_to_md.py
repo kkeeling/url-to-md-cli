@@ -18,8 +18,8 @@ into a markdown document, saving them to a specified output directory.
 
 Usage:
     # Install and run with uv
-    uv run url_to_md.py --input INPUT.csv --output OUTPUT_DIR
-    uv run url_to_md.py  # Will prompt for input and output
+    uv run --script url_to_md.py --input INPUT.csv --output OUTPUT_DIR
+    uv run --script url_to_md.py  # Will prompt for input and output
     
     # If installed locally
     python url_to_md.py --input INPUT.csv --output OUTPUT_DIR
@@ -48,7 +48,7 @@ from halo import Halo
 # Import docling for document conversion (required)
 try:
     import docling
-    from docling.converter import convert_document_from_url
+    from docling.document_converter import DocumentConverter
 except ImportError:
     print("Error: docling library is required but not installed.")
     print("Please install it using: pip install docling")
@@ -64,38 +64,21 @@ def read_urls_from_csv(file_path: Path) -> List[str]:
     """
     Read URLs from a CSV file.
     
-    Tries to intelligently determine the format: if the file has headers,
-    it looks for columns that might contain URLs. If not, it assumes
-    the first column contains URLs.
+    Expects a simple CSV file with URLs separated by commas.
     """
     console = Console()
     
     try:
         with Halo(text=f"Reading URLs from {file_path}", spinner="dots") as spinner:
-            # Try reading with pandas to auto-detect format
-            df = pd.read_csv(file_path)
-            spinner.succeed(f"Successfully read CSV with {len(df)} rows")
-        
-        # Look for columns that might contain URLs
-        url_columns = []
-        for col in df.columns:
-            # Check if column name contains typical URL-related terms
-            if any(term in col.lower() for term in ['url', 'link', 'href', 'web', 'site', 'http']):
-                url_columns.append(col)
-        
-        # If we found likely URL columns, use the first one
-        if url_columns:
-            urls = df[url_columns[0]].dropna().tolist()
-            console.print(f"Using column [bold green]{url_columns[0]}[/bold green] for URLs")
-        # Otherwise, assume the first column contains URLs
-        else:
-            urls = df.iloc[:, 0].dropna().tolist()
-            console.print(f"Using first column [bold yellow]{df.columns[0]}[/bold yellow] for URLs")
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read().strip()
+                urls = [url.strip() for url in content.split(',') if url.strip()]
+            
+            spinner.succeed(f"Successfully read CSV with {len(urls)} URLs")
         
         # Validate URLs by checking if they have a scheme and netloc
         valid_urls = []
         for url in urls:
-            url = str(url).strip()
             parsed = urlparse(url)
             if parsed.scheme and parsed.netloc:
                 valid_urls.append(url)
@@ -125,9 +108,22 @@ def convert_url_to_markdown(url: str, index: int) -> Tuple[str, str]:
         ConversionError: If conversion fails
     """
     try:
-        # Convert document using docling
-        doc = convert_document_from_url(url)
-        return doc.to_markdown(), url
+        # Create a DocumentConverter instance
+        from docling.document_converter import DocumentConverter
+        
+        # Create converter
+        converter = DocumentConverter()
+        
+        # Convert the document
+        result = converter.convert(url)
+        
+        # Check if conversion was successful
+        if result.document:
+            # Convert to markdown
+            markdown_content = result.document.export_to_markdown()
+            return markdown_content, url
+        else:
+            raise ConversionError(f"Failed to convert URL: {url}")
     except requests.RequestException as e:
         raise ConversionError(f"Request failed: {str(e)}")
     except Exception as e:
@@ -272,10 +268,6 @@ def main(input: Optional[Path], output: Optional[Path]):
     
     # Banner
     console.print(Panel("[bold blue]URL to Markdown Converter[/bold blue]"))
-    
-    # Display docling version info
-    console.print(f"Using docling version {docling.__version__}")
-    console.print()
     
     # Prompt for input file if not provided
     if input is None:
