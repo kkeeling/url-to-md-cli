@@ -24,9 +24,11 @@ and batch converter functionalities that coordinate the conversion workflow.
 
 from .menu_system import MenuSystem, MenuState
 from .single_item_converter import SingleItemConverter
+from .batch_converter import BatchConverter
 
 __all__ = [
     "MenuSystem",
     "MenuState",
     "SingleItemConverter",
+    "BatchConverter",
 ]

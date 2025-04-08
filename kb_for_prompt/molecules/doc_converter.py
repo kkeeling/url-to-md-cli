@@ -71,7 +71,6 @@ def convert_doc_to_markdown(
     
     # Convert file path to string for docling
     path_str = str(resolved_path)
-    print(f"File path: {path_str}")
     
     # Set up retry mechanism
     retries = 0
@@ -82,8 +81,11 @@ def convert_doc_to_markdown(
             # Create a DocumentConverter instance
             converter = DocumentConverter()
             
-            # Convert the document with timeout - pass the path directly
-            result = converter.convert(path_str)
+            # Create a file URL from the path and use it for conversion
+            file_url = create_file_url(resolved_path)
+            
+            # Convert the document with timeout
+            result = converter.convert(file_url)
             
             # Check if conversion was successful and document was created
             if result.document:
