@@ -72,7 +72,12 @@ def create_file_url(file_path: Union[str, Path]) -> str:
     if os.name == 'nt' and len(path_str) >= 3 and path_str[1:3] == ':\\':
         return "file:///" + path_str.replace('\\', '/')
     
-    return f"file://{path_str}"
+    # For non-Windows paths, ensure three slashes are used
+    # If path_str already starts with a slash, we don't need to add it
+    if path_str.startswith('/'):
+        return f"file:///{path_str[1:]}"
+    else:
+        return f"file:///{path_str}"
 
 
 def ensure_directory_exists(directory: Union[str, Path]) -> Path:

@@ -332,15 +332,32 @@ class MenuSystem:
         """
         Handle the processing state.
         
-        This is a placeholder for the actual conversion process.
-        Will be implemented in a future task.
+        Process the input using the appropriate converter based on
+        the input type and store results for display.
         """
         display_section_header("Processing", console=self.console)
         
-        self.console.print("\n[yellow]Processing functionality is not implemented yet.[/yellow]")
-        self.console.print("This feature will be available in a future update.")
+        # Get input data from user_data
+        input_path = self.user_data.get("input_path")
+        output_dir = self.user_data.get("output_dir")
         
-        # Transition to results (for now, this is just a placeholder)
+        if not input_path:
+            self.console.print("\n[bold red]Error:[/bold red] No input path specified.")
+            self._attempt_recovery("No input path specified")
+            return
+        
+        # Create a single item converter
+        from kb_for_prompt.organisms.single_item_converter import SingleItemConverter
+        converter = SingleItemConverter(console=self.console)
+        
+        # Run the conversion process
+        success, result_data = converter.run(input_path, output_dir)
+        
+        # Store results in user_data for the results screen
+        self.user_data["conversion_success"] = success
+        self.user_data["conversion_results"] = result_data
+        
+        # Transition to results
         self._transition_to(MenuState.RESULTS)
     
     def _handle_results(self) -> None:
@@ -351,7 +368,34 @@ class MenuSystem:
         """
         display_section_header("Results", console=self.console)
         
-        self.console.print("\n[green]Conversion would be displayed here in a future update.[/green]")
+        # Get conversion results from user_data
+        success = self.user_data.get("conversion_success", False)
+        results = self.user_data.get("conversion_results", {})
+        
+        # Display appropriate results based on success/failure
+        if success:
+            input_type = results.get("input_type", "unknown")
+            input_path = results.get("input_path", "unknown")
+            output_path = results.get("output_path", "unknown")
+            
+            # Format the success message
+            self.console.print("\n[bold green]✓ Conversion Successful[/bold green]")
+            self.console.print(f"Input type: [cyan]{input_type}[/cyan]")
+            self.console.print(f"Input: [cyan]{input_path}[/cyan]")
+            self.console.print(f"Output: [cyan]{output_path}[/cyan]")
+            
+            # If it's a file, suggest opening it
+            if output_path:
+                self.console.print(f"\nYou can find your converted file at: [bold cyan]{output_path}[/bold cyan]")
+        else:
+            # Display error information
+            error_data = results.get("error", {})
+            error_type = error_data.get("type", "unknown")
+            error_message = error_data.get("message", "Unknown error occurred")
+            
+            self.console.print("\n[bold red]✗ Conversion Failed[/bold red]")
+            self.console.print(f"Error type: [yellow]{error_type}[/yellow]")
+            self.console.print(f"Error message: [yellow]{error_message}[/yellow]")
         
         # Ask if user wants to convert more items
         if prompt_for_continue("Would you like to convert another item?", console=self.console):

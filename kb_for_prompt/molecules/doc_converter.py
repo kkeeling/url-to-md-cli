@@ -69,8 +69,9 @@ def convert_doc_to_markdown(
     # Validate that the file is a Word document (.doc or .docx)
     file_type = validate_file_type(resolved_path, allowed_types=["doc", "docx"])
     
-    # Convert file path to file URL for docling
-    file_url = create_file_url(resolved_path)
+    # Convert file path to string for docling
+    path_str = str(resolved_path)
+    print(f"File path: {path_str}")
     
     # Set up retry mechanism
     retries = 0
@@ -81,8 +82,8 @@ def convert_doc_to_markdown(
             # Create a DocumentConverter instance
             converter = DocumentConverter()
             
-            # Convert the document with timeout
-            result = converter.convert(file_url)
+            # Convert the document with timeout - pass the path directly
+            result = converter.convert(path_str)
             
             # Check if conversion was successful and document was created
             if result.document:
