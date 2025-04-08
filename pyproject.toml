@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kb-for-prompt"
+version = "0.1.0"
+description = "A CLI tool that converts online and local documents to Markdown for use with LLM prompts"
+readme = "kb_for_prompt/README.md"
+requires-python = "==3.12"
+authors = [
+    {name = "Codeshack X", email = "codeshack@example.com"},
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "click",
+    "rich",
+    "halo",
+    "requests",
+    "pandas",
+    "docling",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "flake8",
+    "mypy",
+]
+
+[tool.setuptools]
+packages = ["kb_for_prompt"]

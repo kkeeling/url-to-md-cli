@@ -1,3 +1,15 @@
+# /// script
+# requires-python = "==3.12"
+# dependencies = [
+#     "click",
+#     "rich",
+#     "halo",
+#     "requests",
+#     "pandas",
+#     "docling",
+# ]
+# ///
+
 """
 Organisms module for kb_for_prompt.
 
@@ -9,3 +21,10 @@ conversion processes and user interactions.
 This module contains the interactive menu system, single item converter,
 and batch converter functionalities that coordinate the conversion workflow.
 """
+
+from .menu_system import MenuSystem, MenuState
+
+__all__ = [
+    "MenuSystem",
+    "MenuState",
+]

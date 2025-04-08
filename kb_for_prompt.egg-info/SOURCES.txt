@@ -1,0 +1,8 @@
+pyproject.toml
+kb_for_prompt/README.md
+kb_for_prompt/__init__.py
+kb_for_prompt.egg-info/PKG-INFO
+kb_for_prompt.egg-info/SOURCES.txt
+kb_for_prompt.egg-info/dependency_links.txt
+kb_for_prompt.egg-info/requires.txt
+kb_for_prompt.egg-info/top_level.txt

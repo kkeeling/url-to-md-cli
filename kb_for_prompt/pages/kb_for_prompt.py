@@ -1,5 +1,5 @@
 # /// script
-# requires-python = ">=3.12"
+# requires-python = "==3.12"
 # dependencies = [
 #     "click",
 #     "rich",
@@ -31,8 +31,13 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+# Add the parent directory to sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 import click
 from rich.console import Console
+
+from kb_for_prompt.organisms.menu_system import MenuSystem
 
 # Define version directly to avoid import issues
 __version__ = "0.1.0"
@@ -48,14 +53,23 @@ def main():
     """
     console = Console()
     
-    # Display banner
-    console.print("[bold blue]KB for Prompt - Document to Markdown Converter[/bold blue]")
-    console.print(f"Version: {__version__}")
-    console.print("")
-    
-    # TODO: Implement the interactive menu system and conversion logic
-    console.print("[yellow]This is a skeleton implementation. Further functionality will be added in future tasks.[/yellow]")
-    
+    try:
+        # Create and run the menu system
+        menu_system = MenuSystem(console=console)
+        exit_code = menu_system.run()
+        
+        # Exit with the appropriate code
+        return exit_code
+        
+    except KeyboardInterrupt:
+        # Handle Ctrl+C gracefully
+        console.print("\n\n[yellow]Operation cancelled by user.[/yellow]")
+        return 0
+    except Exception as e:
+        # Handle any unexpected exceptions
+        console.print(f"\n[bold red]An unexpected error occurred:[/bold red] {str(e)}")
+        return 1
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

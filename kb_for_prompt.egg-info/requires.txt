@@ -1,0 +1,11 @@
+click
+rich
+halo
+requests
+pandas
+docling
+
+[dev]
+pytest
+flake8
+mypy
