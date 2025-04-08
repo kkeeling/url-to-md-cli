@@ -1,3 +1,11 @@
 output
 .DS_Store
 specs
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
