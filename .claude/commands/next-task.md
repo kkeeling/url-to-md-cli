@@ -12,7 +12,8 @@ Find the next task in `$ARGUMENTS/todo.md`, read the prompt for the task from pr
 5. Use the Aider AI Code Tool to implement the task you found in step 1 to completion
 6. Use the Aider AI Code Tool to write unit tests for the task
 7. Run all tests to ensure you have not broken any previous tests
-8. Mark the task as complete in the todo list
+8. Run the cli command `uv run kb_for_prompt/pages/kb_for_prompt.py` to run the application. If running the application fails or contains errors, fix the errors. Do not move on to the next instruction until the application runs without errors.
+9. Mark the task as complete in the todo list
 
 ## Important Notes
 

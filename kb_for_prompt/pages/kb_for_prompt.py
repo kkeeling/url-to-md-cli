@@ -34,8 +34,8 @@ from typing import Optional
 import click
 from rich.console import Console
 
-# Package version
-from kb_for_prompt import __version__
+# Define version directly to avoid import issues
+__version__ = "0.1.0"
 
 
 @click.command()
