@@ -3,8 +3,10 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Commands
-- Run script: `python url_to_md.py` or `uv run --script url_to_md.py`
-- Install dependencies: `pip install -r requirements.txt` or `uv pip install -r requirements.txt`
+- Run script: `uv run url_to_md.py`
+- Run all tests: `uv run pytest`
+- Run specific test: `uv run pytest test_name`
+- Install dependencies: `uv pip install -r requirements.txt`
 - Lint: `flake8 url_to_md.py`
 - Type check: `mypy url_to_md.py`
 
@@ -23,3 +25,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Uses ThreadPoolExecutor for concurrent processing
 - Rich and Halo libraries for console output
 - Exception handling through custom ConversionError class
+
+## Must-Follow Instructions
+- Always read the table of contents for the documentation at `specs/docs/toc.md` to understand what documentation exists and is relevant to the task at hand.
+
+## Testing
+- Since we are using 'uv', we do not want to install dependencies globally. Run the tests with `uv run` and if you still get errors about dependencies, add the following header to the test files with the appropriate dependencies:
+```
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "click",
+#     "rich",
+#     "halo",
+#     "requests",
+#     "pandas",
+#     "docling",
+# ]
+# ///
+```
+
+## Dependencies
+- You should never need to install dependencies. If a dependency is missing, add it to the `///script` header
