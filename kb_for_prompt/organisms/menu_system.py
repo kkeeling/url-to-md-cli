@@ -59,7 +59,9 @@ class MenuState(Enum):
     FILE_INPUT = auto()
     OUTPUT_DIR_INPUT = auto()
     CONFIRMATION = auto()
+    BATCH_CONFIRMATION = auto()
     PROCESSING = auto()
+    BATCH_PROCESSING = auto()
     RESULTS = auto()
     EXIT = auto()
 
@@ -157,8 +159,12 @@ class MenuSystem:
             self._handle_output_dir_input()
         elif self.current_state == MenuState.CONFIRMATION:
             self._handle_confirmation()
+        elif self.current_state == MenuState.BATCH_CONFIRMATION:
+            self._handle_batch_confirmation()
         elif self.current_state == MenuState.PROCESSING:
             self._handle_processing()
+        elif self.current_state == MenuState.BATCH_PROCESSING:
+            self._handle_batch_processing()
         elif self.current_state == MenuState.RESULTS:
             self._handle_results()
     
@@ -224,21 +230,47 @@ class MenuSystem:
     def _handle_batch_menu(self) -> None:
         """
         Handle the batch conversion menu state.
-        
-        This is a placeholder for the batch conversion functionality.
-        Will be implemented in a future task.
+
+        Prompt for a CSV file containing inputs and then transition
+        to the output directory input state.
         """
         display_section_header("Batch Conversion", console=self.console)
-        
-        self.console.print("\n[yellow]Batch conversion is not implemented yet.[/yellow]")
-        self.console.print("This feature will be available in a future update.")
-        
-        # Ask if user wants to go back to main menu
-        if prompt_for_continue("Return to main menu?", console=self.console):
-            self._go_back()
-        else:
-            self._transition_to(MenuState.EXIT)
-    
+
+        # Prompt for CSV file
+        self.console.print("\nPlease provide a CSV file containing URLs and/or file paths to convert.")
+        self.console.print("The CSV file can have one or multiple columns with inputs.")
+
+        # Import the prompt_for_file function from templates
+        from kb_for_prompt.templates.prompts import prompt_for_file, prompt_for_continue
+
+        try:
+            # Get CSV file path from user
+            csv_path = prompt_for_file(
+                message="Enter the path to the CSV file",
+                file_types=["csv"],
+                console=self.console
+            )
+
+            # Store CSV path in user data
+            self.user_data["csv_path"] = str(csv_path)
+
+            # Transition to output directory input state and return
+            # This allows the main loop to handle the next state correctly.
+            self._transition_to(MenuState.OUTPUT_DIR_INPUT)
+            return # <-- ENSURE THIS RETURN IS HERE
+
+        except Exception as e:
+            # Handle potential errors during file prompt (e.g., user cancels)
+            # For now, just go back to the main menu. More specific error handling
+            # could be added here if needed.
+            self.console.print(f"\n[yellow]Operation cancelled or failed: {e}[/yellow]")
+            self._transition_to(MenuState.MAIN_MENU, clear_history=True)
+            return
+
+        # --- The code below this point originally existed here, but it ---
+        # --- should be handled after the OUTPUT_DIR_INPUT state.       ---
+        # --- It is removed as part of this fix.                        ---
+
     def _handle_url_input(self) -> None:
         """
         Handle the URL input state.
@@ -285,120 +317,233 @@ class MenuSystem:
     def _handle_output_dir_input(self) -> None:
         """
         Handle the output directory input state.
-        
-        Prompt for an output directory and create it if needed.
+
+        Prompt for an output directory, create it if needed, store it,
+        and then transition to the appropriate confirmation state based on
+        whether we are doing a single item or batch conversion.
         """
         display_section_header("Output Directory", console=self.console)
-        
-        # Get output directory from user
-        output_dir = prompt_for_output_directory(console=self.console)
-        
-        # Store output directory in user data
-        self.user_data["output_dir"] = str(output_dir)
-        
-        # Transition to confirmation
-        self._transition_to(MenuState.CONFIRMATION)
-    
+        # Import prompt functions needed
+        from kb_for_prompt.templates.prompts import prompt_for_output_directory
+
+        try:
+            # Get output directory from user
+            output_dir = prompt_for_output_directory(console=self.console)
+
+            # Store output directory in user data
+            self.user_data["output_dir"] = str(output_dir)
+
+            # Determine if we came from BATCH_MENU
+            is_batch_conversion = any(state == MenuState.BATCH_MENU for state in self.state_history)
+
+            if is_batch_conversion:
+                # If it's a batch conversion, transition to BATCH_CONFIRMATION state
+                self._transition_to(MenuState.BATCH_CONFIRMATION)
+            else:
+                # Otherwise, assume single item conversion and go to standard CONFIRMATION
+                self._transition_to(MenuState.CONFIRMATION)
+
+        except Exception as e:
+            # Handle potential errors during directory prompt
+            self.console.print(f"\n[yellow]Operation cancelled or failed: {e}[/yellow]")
+            # Go back to the previous state safely
+            self._go_back()
+
     def _handle_confirmation(self) -> None:
         """
-        Handle the confirmation state.
-        
+        Handle the confirmation state for SINGLE ITEM conversions.
+
         Display a summary of the conversion parameters and ask for confirmation.
         """
+        # Import prompt functions needed
+        from kb_for_prompt.templates.prompts import prompt_for_continue
+
         display_section_header("Confirmation", console=self.console)
-        
-        # Display conversion details
+
+        # Display conversion details for single item
         self.console.print("\nConversion details:")
         self.console.print(f"Input type: [cyan]{self.user_data.get('input_type', 'unknown')}[/cyan]")
         self.console.print(f"Input path: [cyan]{self.user_data.get('input_path', 'unknown')}[/cyan]")
         self.console.print(f"Output directory: [cyan]{self.user_data.get('output_dir', 'unknown')}[/cyan]")
-        
+
         # Ask for confirmation
         if prompt_for_continue("Proceed with conversion?", console=self.console):
-            self._transition_to(MenuState.PROCESSING)
+            self._transition_to(MenuState.PROCESSING) # Transition to single item processing
         else:
-            # Calculate the correct steps to go back
+            # Calculate the correct steps to go back for single item flow
             # Find the position of SINGLE_ITEM_MENU in the history
             for i, state in enumerate(reversed(self.state_history)):
                 if state == MenuState.SINGLE_ITEM_MENU:
                     # Go back to that state
                     self._go_back(steps=i+1)
                     return
-                    
+
             # If SINGLE_ITEM_MENU not found, go back to the main menu as a fallback
             self._transition_to(MenuState.MAIN_MENU, clear_history=True)
-    
+
+    # --- ADD A NEW HANDLER FOR BATCH CONFIRMATION ---
+    def _handle_batch_confirmation(self) -> None:
+        """
+        Handle the confirmation state specifically for BATCH conversions.
+
+        Display batch details and ask for confirmation before processing.
+        """
+        # Import prompt functions needed
+        from kb_for_prompt.templates.prompts import prompt_for_continue
+
+        display_section_header("Batch Conversion Confirmation", console=self.console)
+
+        # Display conversion details
+        self.console.print("\nBatch conversion details:")
+        self.console.print(f"CSV File: [cyan]{self.user_data.get('csv_path', 'unknown')}[/cyan]")
+        self.console.print(f"Output directory: [cyan]{self.user_data.get('output_dir', 'unknown')}[/cyan]")
+
+        # Ask for confirmation
+        if prompt_for_continue("Proceed with batch conversion?", console=self.console):
+            # If confirmed, transition to BATCH_PROCESSING state
+            self._transition_to(MenuState.BATCH_PROCESSING)
+        else:
+            # User cancelled, go back to main menu
+            self._transition_to(MenuState.MAIN_MENU, clear_history=True)
+
     def _handle_processing(self) -> None:
         """
-        Handle the processing state.
-        
-        Process the input using the appropriate converter based on
-        the input type and store results for display.
+        Handle the processing state for SINGLE ITEM conversions.
+
+        Perform the conversion using the SingleItemConverter.
         """
-        display_section_header("Processing", console=self.console)
-        
-        # Get input data from user_data
+        display_section_header("Processing Single Item", console=self.console) # Clarify title
+
+        # Import SingleItemConverter
+        from kb_for_prompt.organisms.single_item_converter import SingleItemConverter
+
+        # Create converter
+        converter = SingleItemConverter(console=self.console)
+
+        # Get data from user_data
         input_path = self.user_data.get("input_path")
         output_dir = self.user_data.get("output_dir")
-        
-        if not input_path:
-            self.console.print("\n[bold red]Error:[/bold red] No input path specified.")
-            self._attempt_recovery("No input path specified")
+
+        if not input_path or not output_dir:
+             # Handle error: missing necessary data
+            self.console.print("[bold red]Error: Missing input path or output directory for single item.[/bold red]")
+            self._transition_to(MenuState.MAIN_MENU, clear_history=True) # Go back safely
             return
-        
-        # Create a single item converter
-        from kb_for_prompt.organisms.single_item_converter import SingleItemConverter
-        converter = SingleItemConverter(console=self.console)
-        
-        # Run the conversion process
+
+        # Run the single item conversion
         success, result_data = converter.run(input_path, output_dir)
-        
+
         # Store results in user_data for the results screen
-        self.user_data["conversion_success"] = success
-        self.user_data["conversion_results"] = result_data
-        
-        # Transition to results
+        self.user_data["single_conversion_success"] = success # Use unique key
+        self.user_data["single_conversion_results"] = result_data # Use unique key
+
+        # Transition to the RESULTS state
         self._transition_to(MenuState.RESULTS)
-    
+
+    # --- ADD A NEW HANDLER FOR BATCH PROCESSING ---
+    def _handle_batch_processing(self) -> None:
+        """
+        Handle the processing state specifically for BATCH conversions.
+
+        Perform the batch conversion using the BatchConverter.
+        """
+        display_section_header("Batch Processing", console=self.console)
+
+        # Import BatchConverter
+        from kb_for_prompt.organisms.batch_converter import BatchConverter
+
+        # Create batch converter
+        batch_converter = BatchConverter(console=self.console)
+
+        # Get data from user_data
+        csv_path = self.user_data.get("csv_path")
+        output_dir = self.user_data.get("output_dir")
+
+        if not csv_path or not output_dir:
+            # Handle error: missing necessary data
+            self.console.print("[bold red]Error: Missing CSV path or output directory for batch.[/bold red]")
+            self._transition_to(MenuState.MAIN_MENU, clear_history=True) # Go back safely
+            return
+
+        # Run the batch conversion
+        success, result_data = batch_converter.run(csv_path, output_dir)
+
+        # Store results in user_data for the results screen
+        self.user_data["batch_conversion_success"] = success # Use unique key
+        self.user_data["batch_conversion_results"] = result_data # Use unique key
+
+        # Transition to the RESULTS state
+        self._transition_to(MenuState.RESULTS)
+
     def _handle_results(self) -> None:
         """
-        Handle the results state.
-        
-        Display conversion results and ask if the user wants to convert more items.
+        Handle the results state for both single and batch conversions.
+
+        Display the conversion results and prompt for next action.
         """
-        display_section_header("Results", console=self.console)
-        
-        # Get conversion results from user_data
-        success = self.user_data.get("conversion_success", False)
-        results = self.user_data.get("conversion_results", {})
-        
-        # Display appropriate results based on success/failure
-        if success:
-            input_type = results.get("input_type", "unknown")
-            input_path = results.get("input_path", "unknown")
-            output_path = results.get("output_path", "unknown")
-            
-            # Format the success message
-            self.console.print("\n[bold green]✓ Conversion Successful[/bold green]")
-            self.console.print(f"Input type: [cyan]{input_type}[/cyan]")
-            self.console.print(f"Input: [cyan]{input_path}[/cyan]")
-            self.console.print(f"Output: [cyan]{output_path}[/cyan]")
-            
-            # If it's a file, suggest opening it
-            if output_path:
-                self.console.print(f"\nYou can find your converted file at: [bold cyan]{output_path}[/bold cyan]")
+        # Import prompt functions needed
+        from kb_for_prompt.templates.prompts import prompt_for_continue
+
+        # Check if it was a batch conversion by looking for specific keys in user_data
+        is_batch_conversion = "batch_conversion_success" in self.user_data
+
+        if is_batch_conversion:
+            display_section_header("Batch Conversion Results", console=self.console)
+            results = self.user_data.get("batch_conversion_results", {})
+            success = self.user_data.get("batch_conversion_success", False)
+            total = results.get("total", 0)
+            successful = results.get("successful", [])
+            failed = results.get("failed", [])
+            output_dir_res = results.get("output_dir", "") # Use different var name
+
+            # Display summary
+            if success:
+                self.console.print(f"\n[bold green]✓ Batch Conversion Completed[/bold green]")
+                self.console.print(f"Total inputs: [cyan]{total}[/cyan]")
+                self.console.print(f"Successfully converted: [green]{len(successful)}[/green]")
+                self.console.print(f"Failed conversions: [yellow]{len(failed)}[/yellow]")
+                self.console.print(f"Output directory: [cyan]{output_dir_res}[/cyan]")
+            else:
+                self.console.print(f"\n[bold red]✗ Batch Conversion Failed[/bold red]")
+                if total > 0:
+                    self.console.print(f"Total inputs: [cyan]{total}[/cyan]")
+                    self.console.print(f"Successfully converted: [green]{len(successful)}[/green]")
+                    self.console.print(f"Failed conversions: [yellow]{len(failed)}[/yellow]")
+
+                error_type = results.get("error", {}).get("type", "unknown")
+                error_message = results.get("error", {}).get("message", "Unknown error occurred")
+                if error_type != "unknown" and error_message: # Check if error info exists
+                     self.console.print(f"Error type: [yellow]{error_type}[/yellow]")
+                     self.console.print(f"Error message: [yellow]{error_message}[/yellow]")
+
         else:
-            # Display error information
-            error_data = results.get("error", {})
-            error_type = error_data.get("type", "unknown")
-            error_message = error_data.get("message", "Unknown error occurred")
-            
-            self.console.print("\n[bold red]✗ Conversion Failed[/bold red]")
-            self.console.print(f"Error type: [yellow]{error_type}[/yellow]")
-            self.console.print(f"Error message: [yellow]{error_message}[/yellow]")
-        
+            # Assume single item conversion (Check for single item keys)
+            is_single_conversion = "single_conversion_success" in self.user_data
+            if is_single_conversion:
+                display_section_header("Conversion Result", console=self.console)
+                results = self.user_data.get("single_conversion_results", {})
+                success = self.user_data.get("single_conversion_success", False)
+                input_path = results.get("input_path", "unknown")
+                output_path_res = results.get("output_path", "") # Use different var name
+                error = results.get("error")
+
+                if success:
+                    self.console.print(f"\n[bold green]✓ Conversion Successful[/bold green]")
+                    self.console.print(f"Input: [cyan]{input_path}[/cyan]")
+                    self.console.print(f"Output: [cyan]{output_path_res}[/cyan]")
+                else:
+                    self.console.print(f"\n[bold red]✗ Conversion Failed[/bold red]")
+                    self.console.print(f"Input: [cyan]{input_path}[/cyan]")
+                    if error:
+                        self.console.print(f"Error type: [yellow]{error.get('type', 'unknown')}[/yellow]")
+                        self.console.print(f"Error message: [yellow]{error.get('message', 'Unknown error')}[/yellow]")
+            else:
+                # Fallback if neither batch nor single keys are found
+                self.console.print("[bold yellow]Warning: Could not determine conversion type for results.[/bold yellow]")
+
+
         # Ask if user wants to convert more items
-        if prompt_for_continue("Would you like to convert another item?", console=self.console):
+        if prompt_for_continue("Would you like to perform another conversion?", console=self.console):
             # Reset user data and go back to main menu
             self.user_data = {}
             self._transition_to(MenuState.MAIN_MENU, clear_history=True)

@@ -95,9 +95,9 @@ def test_main_entry_point_has_main_function():
     
     with open(entry_point, "r") as f:
         content = f.read()
-        assert "def main():" in content, "main function definition missing in kb_for_prompt.py"
+        assert "def main(" in content, "main function definition missing in kb_for_prompt.py"
         assert "if __name__ == \"__main__\":" in content, "Entry point guard missing"
-        assert "main()" in content, "main() call missing in entry point"
+        assert "sys.exit(main())" in content, "main() call missing in entry point"
     
 
 def test_readme_exists():

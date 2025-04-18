@@ -192,19 +192,18 @@ class BatchConverter:
         """
         Read and parse inputs from a CSV file.
         
-        The CSV file can be in one of two formats:
-        1. A single column with one input per row
-        2. Multiple columns with inputs in one or more columns
+        The CSV file can contain URLs or file paths in one or multiple columns,
+        potentially across multiple rows. It prioritizes the standard `csv` module.
         
         Args:
             csv_path: Path to the CSV file to read
         
         Returns:
-            A list of input strings (URLs or file paths)
+            A list of unique input strings (URLs or file paths) found in the CSV.
         
         Raises:
-            ValidationError: If the CSV file cannot be read or parsed
-            FileIOError: If there are issues reading the file
+            ValidationError: If the CSV file path is invalid.
+            FileIOError: If there are issues reading the file.
         """
         with display_spinner(
             f"Reading inputs from {csv_path}...",
@@ -214,56 +213,94 @@ class BatchConverter:
                 # Validate and resolve the file path
                 file_path = validate_file_path(csv_path)
                 
-                # Read the CSV file
                 inputs = []
+                spinner.text = f"Parsing CSV file: {file_path}"
                 
+                # --- Use standard CSV reader first ---
                 try:
-                    # First, try to read as a pandas DataFrame
-                    df = pd.read_csv(file_path)
-                    
-                    # Extract non-empty values from all columns
-                    for column in df.columns:
-                        for value in df[column].dropna():
-                            value_str = str(value).strip()
-                            if value_str:
-                                inputs.append(value_str)
-                    
-                    # Display a summary of the DataFrame
-                    spinner.text = "CSV file loaded, analyzing data..."
-                    display_dataframe_summary(df, title="CSV Input Summary", console=self.console)
-                    
-                except Exception as e:
-                    # If pandas fails, fall back to the standard CSV reader
-                    spinner.text = "Falling back to basic CSV parsing..."
-                    
                     with open(file_path, 'r', newline='', encoding='utf-8') as f:
                         reader = csv.reader(f)
-                        for row in reader:
+                        for i, row in enumerate(reader):
+                            spinner.text = f"Reading row {i+1} from {file_path}"
                             for value in row:
                                 value_str = str(value).strip()
                                 if value_str:
                                     inputs.append(value_str)
+                    spinner.text = "Finished reading CSV."
+                except csv.Error as e:
+                    # If csv.reader fails, raise a FileIOError
+                    raise FileIOError(
+                        message=f"Failed to parse CSV file with standard reader: {str(e)}",
+                        file_path=str(file_path),
+                        operation="read"
+                    )
+                except Exception as e:
+                    # Catch other potential file reading errors
+                    raise FileIOError(
+                        message=f"Failed to read CSV file: {str(e)}",
+                        file_path=str(file_path),
+                        operation="read"
+                    )
+                
+                # --- Original pandas code (commented out for now) ---
+                # try:
+                #     # First, try to read as a pandas DataFrame
+                #     df = pd.read_csv(file_path)
+                #
+                #     # Extract non-empty values from all columns
+                #     for column in df.columns:
+                #         for value in df[column].dropna():
+                #             value_str = str(value).strip()
+                #             if value_str:
+                #                 inputs.append(value_str)
+                #
+                #     # Display a summary of the DataFrame
+                #     spinner.text = "CSV file loaded, analyzing data..."
+                #     display_dataframe_summary(df, title="CSV Input Summary", console=self.console)
+                #
+                # except Exception as e:
+                #     # If pandas fails, fall back to the standard CSV reader
+                #     spinner.text = "Falling back to basic CSV parsing..."
+                #
+                #     with open(file_path, 'r', newline='', encoding='utf-8') as f:
+                #         reader = csv.reader(f)
+                #         for row in reader:
+                #             for value in row:
+                #                 value_str = str(value).strip()
+                #                 if value_str:
+                #                     inputs.append(value_str)
                 
                 # Filter out duplicates while preserving order
                 unique_inputs = []
-                seen = set()
+                seen: Set[str] = set() # Explicitly type hint seen
                 for item in inputs:
                     if item not in seen:
                         seen.add(item)
                         unique_inputs.append(item)
                 
+                if not unique_inputs:
+                    spinner.text = "No inputs found in CSV."
+                else:
+                    spinner.text = f"Found {len(unique_inputs)} unique inputs."
+                
                 return unique_inputs
                 
             except ValidationError as e:
+                # Re-raise validation errors related to the file path itself
                 raise ValidationError(
-                    message=f"Invalid CSV file: {e.message}",
+                    message=f"Invalid CSV file path: {e.message}",
                     input_value=str(csv_path),
                     validation_type="csv_input"
                 )
                 
+            except FileIOError as e:
+                # Re-raise FileIOErrors encountered during reading/parsing
+                raise e
+                
             except Exception as e:
+                # Catch any other unexpected errors during the process
                 raise FileIOError(
-                    message=f"Failed to read CSV file: {str(e)}",
+                    message=f"Unexpected error reading CSV file: {str(e)}",
                     file_path=str(csv_path),
                     operation="read"
                 )
