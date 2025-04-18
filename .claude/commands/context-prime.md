@@ -11,7 +11,7 @@ Perform the following steps in order:
 2. READ the table of contents for the documentation using `cat specs/docs/toc.md`:
 
 3. READ the README.md file. This is the main file for the project. It contains information about the project, including the purpose, features, and how to use it:
-   - `README.md`
+   - `kb_for_prompt/README.md`
 
 4. RUN `git ls-files` to see the files in the project. This is useful for finding the path to any file you need.
 
