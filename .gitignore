@@ -9,3 +9,5 @@ __pycache__
 *.pyd
 *.pyw
 *.pyz
+
+.mcp.json
