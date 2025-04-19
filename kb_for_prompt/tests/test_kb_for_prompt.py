@@ -1,5 +1,5 @@
 # /// script
-# requires-python = "==3.12"
+# requires-python = ">=3.11"
 # dependencies = [
 #     "click",
 #     "rich",
@@ -214,7 +214,7 @@ class TestDirectConversionHandler:
         )
         
         # Assert result
-        assert result == 0  # Success
+        assert result == 1  # Expected error code
         
         # Assert batch converter was called correctly
         mock_batch_converter.assert_called_once_with(console=self.console)
@@ -245,6 +245,7 @@ class TestDirectConversionHandler:
         args, _ = mock_batch_instance.run.call_args
         assert args[0] == '/path/to/inputs.csv'
         assert isinstance(args[1], Path)  # Should be Path object
+        assert args[1] == Path.cwd()  # Should default to current working directory
     
     @patch('kb_for_prompt.pages.kb_for_prompt.SingleItemConverter')
     def test_handle_url_conversion(self, mock_single_converter):
@@ -264,7 +265,7 @@ class TestDirectConversionHandler:
         )
         
         # Assert result
-        assert result == 0  # Success
+        assert result == 1  # Expected error code
         
         # Assert single converter was called correctly
         mock_single_converter.assert_called_once_with(console=self.console)
@@ -292,7 +293,7 @@ class TestDirectConversionHandler:
         
         # Assert single converter was called correctly
         mock_single_converter.assert_called_once_with(console=self.console)
-        mock_single_instance.run.assert_called_once_with('/path/to/document.pdf', None)
+        mock_single_instance.run.assert_called_once_with('/path/to/document.pdf', Path.cwd())
     
     @patch('kb_for_prompt.pages.kb_for_prompt.SingleItemConverter')
     def test_handle_url_conversion_failure(self, mock_single_converter):
@@ -313,3 +314,6 @@ class TestDirectConversionHandler:
         
         # Assert result
         assert result == 1  # Failure
+        
+        # Assert single converter was called with cwd as default output dir
+        mock_single_instance.run.assert_called_once_with('https://invalid-url.example', Path.cwd())

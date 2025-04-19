@@ -11,3 +11,6 @@ __pycache__
 *.pyz
 
 .mcp.json
+.aider*
+# Exclude tests directories that aren't part of the package structure
+/tests/

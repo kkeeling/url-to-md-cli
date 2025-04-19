@@ -1,5 +1,5 @@
 # /// script
-# requires-python = "==3.12"
+# requires-python = ">=3.11"
 # dependencies = [
 #     "click",
 #     "rich",
@@ -42,65 +42,98 @@ class TestBatchConverter:
         self.batch_converter = BatchConverter(console=self.console)
     
     @patch('kb_for_prompt.organisms.batch_converter.validate_file_path')
-    @patch('kb_for_prompt.organisms.batch_converter.pd.read_csv')
-    @patch('kb_for_prompt.organisms.batch_converter.display_dataframe_summary')
-    def test_read_inputs_from_csv_pandas(self, mock_display_summary, mock_read_csv, mock_validate_path):
-        """Test reading inputs from a CSV file using pandas."""
-        # Mock DataFrame
-        df = pd.DataFrame({
-            'url': ['https://example.com', 'https://test.com', ''],
-            'files': ['file1.pdf', '', 'file2.docx']
-        })
-        mock_read_csv.return_value = df
+    @patch('builtins.open', new_callable=mock_open, read_data="url,files\nhttps://example.com,file1.pdf\nhttps://test.com,\n,file2.docx")
+    @patch('kb_for_prompt.organisms.batch_converter.csv.reader')
+    def test_read_inputs_from_csv_standard(self, mock_csv_reader, mock_open_file, mock_validate_path):
+        """Test reading inputs from a CSV file using the standard csv module."""
+        # Mock CSV data as returned by csv.reader
+        mock_csv_data = [
+            ['url', 'files'],
+            ['https://example.com', 'file1.pdf'],
+            ['https://test.com', ''],
+            ['', 'file2.docx']
+        ]
+        mock_csv_reader.return_value = iter(mock_csv_data)
         
         # Mock path validation
-        mock_validate_path.return_value = Path('/path/to/csv')
+        mock_validate_path.return_value = Path('/path/to/test.csv')
         
         # Call the method under test
         with patch('kb_for_prompt.organisms.batch_converter.display_spinner') as mock_spinner:
             mock_spinner.return_value.__enter__.return_value = MagicMock()
             result = self.batch_converter.read_inputs_from_csv('test.csv')
         
-        # Check the results
-        assert len(result) == 4
+        # Check the results - expecting unique, non-empty values from all cells
+        assert len(result) == 6 # url, files, https://example.com, file1.pdf, https://test.com, file2.docx
         assert 'https://example.com' in result
         assert 'https://test.com' in result
         assert 'file1.pdf' in result
         assert 'file2.docx' in result
-    
+        assert 'url' in result # Header values are also included
+        assert 'files' in result # Header values are also included
+
+        # Verify mocks
+        mock_validate_path.assert_called_once_with('test.csv')
+        mock_open_file.assert_called_once_with(Path('/path/to/test.csv'), 'r', newline='', encoding='utf-8')
+        mock_csv_reader.assert_called_once()
+
     @patch('kb_for_prompt.organisms.batch_converter.validate_file_path')
-    @patch('kb_for_prompt.organisms.batch_converter.pd.read_csv')
-    @patch('builtins.open')
-    def test_read_inputs_from_csv_fallback(self, mock_open, mock_read_csv, mock_validate_path):
-        """Test reading inputs from a CSV file using fallback CSV reader."""
-        # Mock pandas raising exception
-        mock_read_csv.side_effect = Exception("Pandas error")
-        
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('kb_for_prompt.organisms.batch_converter.csv.reader')
+    def test_read_inputs_from_csv_standard_reader_error(self, mock_csv_reader, mock_open_file, mock_validate_path):
+        """Test handling of csv.Error during standard CSV reading."""
         # Mock path validation
-        mock_validate_path.return_value = Path('/path/to/csv')
-        
-        # Mock CSV data
-        csv_data = [
-            ['https://example.com', 'file1.pdf'],
-            ['https://test.com', 'file2.docx']
-        ]
-        mock_file = MagicMock()
-        mock_open.return_value.__enter__.return_value = mock_file
-        mock_reader = MagicMock()
-        mock_reader.__iter__.return_value = iter(csv_data)
-        
-        with patch('kb_for_prompt.organisms.batch_converter.csv.reader', return_value=mock_reader):
-            with patch('kb_for_prompt.organisms.batch_converter.display_spinner') as mock_spinner:
-                mock_spinner.return_value.__enter__.return_value = MagicMock()
-                result = self.batch_converter.read_inputs_from_csv('test.csv')
-        
-        # Check the results
-        assert len(result) == 4
-        assert 'https://example.com' in result
-        assert 'https://test.com' in result
-        assert 'file1.pdf' in result
-        assert 'file2.docx' in result
-    
+        mock_validate_path.return_value = Path('/path/to/error.csv')
+
+        # Mock csv.reader to raise an error
+        mock_csv_reader.side_effect = csv.Error("Malformed CSV")
+
+        # Call the method under test and expect FileIOError
+        with patch('kb_for_prompt.organisms.batch_converter.display_spinner') as mock_spinner:
+            mock_spinner.return_value.__enter__.return_value = MagicMock()
+            with pytest.raises(FileIOError) as excinfo:
+                self.batch_converter.read_inputs_from_csv('error.csv')
+
+        # Check the exception details
+        assert "Failed to parse CSV file with standard reader" in str(excinfo.value)
+        assert "Malformed CSV" in str(excinfo.value)
+        assert excinfo.value.file_path == '/path/to/error.csv'
+        assert excinfo.value.operation == 'read'
+
+        # Verify mocks
+        mock_validate_path.assert_called_once_with('error.csv')
+        mock_open_file.assert_called_once_with(Path('/path/to/error.csv'), 'r', newline='', encoding='utf-8')
+        mock_csv_reader.assert_called_once()
+
+    # Note: The test_read_inputs_from_csv_fallback is less relevant now as the primary
+    # mechanism IS the standard CSV reader. We keep it but adjust its purpose slightly
+    # to test the general file reading error handling if open itself fails.
+    @patch('kb_for_prompt.organisms.batch_converter.validate_file_path')
+    @patch('builtins.open')
+    def test_read_inputs_from_csv_file_open_error(self, mock_open_file, mock_validate_path):
+        """Test handling errors during file opening."""
+        # Mock path validation
+        mock_validate_path.return_value = Path('/path/to/unreadable.csv')
+
+        # Mock open to raise an IOError
+        mock_open_file.side_effect = IOError("Permission denied")
+
+        # Call the method under test and expect FileIOError
+        with patch('kb_for_prompt.organisms.batch_converter.display_spinner') as mock_spinner:
+            mock_spinner.return_value.__enter__.return_value = MagicMock()
+            with pytest.raises(FileIOError) as excinfo:
+                self.batch_converter.read_inputs_from_csv('unreadable.csv')
+
+        # Check the exception details
+        assert "Failed to read CSV file" in str(excinfo.value)
+        assert "Permission denied" in str(excinfo.value)
+        assert excinfo.value.file_path == '/path/to/unreadable.csv'
+        assert excinfo.value.operation == 'read'
+
+        # Verify mocks
+        mock_validate_path.assert_called_once_with('unreadable.csv')
+        mock_open_file.assert_called_once_with(Path('/path/to/unreadable.csv'), 'r', newline='', encoding='utf-8')
+
     def test_validate_and_classify_inputs(self):
         """Test validation and classification of inputs."""
         inputs = [
@@ -228,9 +261,14 @@ class TestBatchConverter:
         mock_future2 = MagicMock()
         mock_future2.result.return_value = failed_result
         
+        # Create a mapping from future to input_data for as_completed
+        future_to_input_map = {
+            mock_future1: valid_inputs[0],
+            mock_future2: valid_inputs[1]
+        }
         mock_executor.submit.side_effect = [mock_future1, mock_future2]
-        
-        # Mock concurrent.futures.as_completed to return futures in order
+
+        # Mock concurrent.futures.as_completed to return futures and use the map
         with patch('kb_for_prompt.organisms.batch_converter.concurrent.futures.as_completed', return_value=[mock_future1, mock_future2]):
             with patch.object(self.batch_converter, 'validate_and_classify_inputs', return_value=(valid_inputs, invalid_inputs)):
                 with patch('kb_for_prompt.organisms.batch_converter.display_progress_bar') as mock_progress_bar:
@@ -238,10 +276,13 @@ class TestBatchConverter:
                     mock_progress = MagicMock()
                     mock_progress.task_id = 'task1'
                     mock_progress_bar.return_value.__enter__.return_value = mock_progress
-                    
-                    # Call the method under test
-                    successful, failed = self.batch_converter._process_batch(inputs, Path('/output/dir'))
-        
+
+                    # Reconstruct the future_to_input dictionary inside the mocked context
+                    # This is necessary because the original dict is created before as_completed is mocked
+                    with patch.dict(self.batch_converter.__dict__, {'future_to_input': future_to_input_map}):
+                        # Call the method under test
+                        successful, failed = self.batch_converter._process_batch(inputs, Path('/output/dir'))
+
         # Check the results
         assert len(successful) == 1
         assert len(failed) == 1
@@ -249,7 +290,13 @@ class TestBatchConverter:
         assert successful[0]['file'] == '/output/dir/example_com.md'
         assert failed[0]['original'] == '/path/to/document.pdf'
         assert failed[0]['error'] == 'Failed to convert PDF'
-    
+        assert failed[0]['type'] == 'pdf' # Ensure type is included in failed items
+
+        # Verify that submit was called correctly
+        assert mock_executor.submit.call_count == 2
+        mock_executor.submit.assert_any_call(self.batch_converter._process_single_input, valid_inputs[0], Path('/output/dir'))
+        mock_executor.submit.assert_any_call(self.batch_converter._process_single_input, valid_inputs[1], Path('/output/dir'))
+
     def test_process_single_input_url(self):
         """Test processing a single URL input."""
         # Input data
@@ -366,11 +413,11 @@ class TestBatchConverter:
         assert result['original'] == 'https://example.com'
         assert result['type'] == 'url'
         assert result['output_path'] is None
-        # Note: In our implementation, any exception is classified as "unexpected"
-        # rather than using the specific ConversionError type
-        assert result['error']['type'] in ['conversion', 'unexpected']
+        # Check if the error type is correctly identified
+        assert result['error']['type'] == 'conversion' # Should now correctly identify ConversionError
         assert 'Failed to convert URL' in result['error']['message']
-    
+        assert 'test error' in result['error']['message']
+
     def test_display_input_summary(self):
         """Test displaying a summary of inputs."""
         inputs = [
@@ -391,7 +438,9 @@ class TestBatchConverter:
         
         # Check the results
         mock_display.assert_called_once()
-        call_args = mock_display.call_args[0][0]
-        assert "Loaded 4 inputs" in call_args
-        assert "2 URLs" in call_args
-        assert "2 files" in call_args
+        call_args, call_kwargs = mock_display.call_args
+        assert "Loaded 4 inputs" in call_args[0]
+        assert "2 URLs" in call_args[0]
+        assert "2 files" in call_args[0]
+        assert call_kwargs['status'] == 'info'
+        assert call_kwargs['console'] == self.console

@@ -1,5 +1,5 @@
 # /// script
-# requires-python = "==3.12"
+# requires-python = ">=3.11"
 # dependencies = [
 #     "click",
 #     "rich",
@@ -300,3 +300,135 @@ def prompt_for_continue(
     console = console or Console()
     
     return Confirm.ask(f"[bold green]{message}[/bold green]", default=True)
+
+
+def prompt_for_toc_generation(console: Optional[Console] = None) -> bool:
+    """
+    Ask the user if they want to generate a table of contents.
+    
+    Args:
+        console: The Rich console to print to. If None, a new console is created.
+    
+    Returns:
+        bool: True if user wants to generate TOC, False otherwise.
+    """
+    console = console or Console()
+    
+    return Confirm.ask(
+        "[bold green]Would you like to generate a table of contents? (y/n)[/bold green]",
+        default=True
+    )
+
+
+def prompt_for_kb_generation(console: Optional[Console] = None) -> bool:
+    """
+    Ask the user if they want to generate a single-file knowledge base.
+    
+    Args:
+        console: The Rich console to print to. If None, a new console is created.
+    
+    Returns:
+        bool: True if user wants to generate KB, False otherwise.
+    """
+    console = console or Console()
+    
+    return Confirm.ask(
+        "[bold green]Would you like to generate a single-file knowledge base from the documents? (y/n)[/bold green]",
+        default=True
+    )
+
+
+def prompt_save_confirmation(content_preview: str, console: Optional[Console] = None) -> bool:
+    """
+    Display a preview of generated content and ask for confirmation to save.
+    
+    Args:
+        content_preview: The content to preview (first 50 lines).
+        console: The Rich console to print to. If None, a new console is created.
+    
+    Returns:
+        bool: True if user wants to save the content, False otherwise.
+    """
+    console = console or Console()
+    
+    # Display preview in a panel
+    preview_panel = Panel(
+        content_preview,
+        title="[bold]Content Preview[/bold]",
+        border_style="green",
+        expand=False
+    )
+    console.print(preview_panel)
+    
+    # Get confirmation
+    return Confirm.ask(
+        "[bold green]Do you want to save this file? (y/n)[/bold green]",
+        default=True
+    )
+
+
+def prompt_overwrite_rename(filename: str, console: Optional[Console] = None) -> Tuple[str, Optional[str]]:
+    """
+    Handle the case where a file already exists.
+    
+    Args:
+        filename: The name of the file that already exists.
+        console: The Rich console to print to. If None, a new console is created.
+    
+    Returns:
+        Tuple containing:
+            - choice: 'overwrite', 'rename', or 'cancel'
+            - new_filename: If 'rename' is chosen, the new filename; otherwise None
+    """
+    console = console or Console()
+    
+    # Inform the user
+    console.print(f"[bold yellow]Warning:[/bold yellow] File {filename} already exists.")
+    
+    # Get user choice
+    choice = Prompt.ask(
+        "Overwrite, Rename, or Cancel?",
+        choices=["o", "r", "c"],
+        default="o"
+    ).lower()
+    
+    # Process choice
+    if choice == "o":
+        return ("overwrite", None)
+    elif choice == "r":
+        # Suggest a default new name (append _1 before extension)
+        path = Path(filename)
+        default_new_name = f"{path.stem}_1{path.suffix}"
+        
+        # Ask for new filename
+        while True:
+            new_name = Prompt.ask(
+                "Enter new filename",
+                default=default_new_name
+            )
+            
+            if new_name.strip():
+                return ("rename", new_name)
+            else:
+                console.print("[bold red]Error:[/bold red] Filename cannot be empty.")
+    else:  # choice == "c"
+        return ("cancel", None)
+
+
+def prompt_retry_generation(process_name: str = "generation", console: Optional[Console] = None) -> bool:
+    """
+    Ask the user if they want to retry a generation process.
+    
+    Args:
+        process_name: Name of the process to retry.
+        console: The Rich console to print to. If None, a new console is created.
+    
+    Returns:
+        bool: True if user wants to retry, False otherwise.
+    """
+    console = console or Console()
+    
+    return Confirm.ask(
+        f"[bold green]Do you want to retry the {process_name} process? (y/n)[/bold green]",
+        default=True
+    )
