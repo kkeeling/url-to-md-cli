@@ -290,6 +290,165 @@ class TestMenuSystem:
         # Verify Confirm.ask was called (it's called by prompt_for_continue)
         mock_confirm_ask.assert_called_once()
 
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    def test_results_transition_to_toc_prompt(self, mock_display_section_header):
+        """Test that the results handler transitions to TOC_PROMPT."""
+        # Set up minimal user data to indicate a successful single conversion
+        self.menu_system.user_data = {
+            "single_conversion_success": True,
+            "single_conversion_results": {
+                "input_path": "test.pdf",
+                "output_path": "/output/test.md"
+            }
+        }
+        # Set the state *before* calling the handler
+        self.menu_system.current_state = MenuState.RESULTS
+        initial_history = [MenuState.PROCESSING] # Example history
+        self.menu_system.state_history = initial_history.copy()
+
+        # Run the results handler
+        self.menu_system._handle_results()
+
+        # Check that the state transitions to TOC_PROMPT
+        assert self.menu_system.current_state == MenuState.TOC_PROMPT
+
+        # Check history was updated correctly
+        expected_history = initial_history + [MenuState.RESULTS]
+        assert self.menu_system.state_history == expected_history
+
+    # --- Tests for new placeholder handlers ---
+
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_for_toc_generation')
+    def test_handle_toc_prompt_yes(self, mock_prompt_toc, mock_display_section_header):
+        """Test TOC prompt handler when user says yes."""
+        mock_prompt_toc.return_value = True
+        self.menu_system.current_state = MenuState.TOC_PROMPT
+        self.menu_system._handle_toc_prompt()
+        assert self.menu_system.current_state == MenuState.TOC_PROCESSING
+        mock_prompt_toc.assert_called_once()
+
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_for_toc_generation')
+    def test_handle_toc_prompt_no(self, mock_prompt_toc, mock_display_section_header):
+        """Test TOC prompt handler when user says no."""
+        mock_prompt_toc.return_value = False
+        self.menu_system.current_state = MenuState.TOC_PROMPT
+        self.menu_system._handle_toc_prompt()
+        assert self.menu_system.current_state == MenuState.KB_PROMPT
+        mock_prompt_toc.assert_called_once()
+
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    def test_handle_toc_processing(self, mock_display_section_header):
+        """Test TOC processing handler (placeholder)."""
+        self.menu_system.current_state = MenuState.TOC_PROCESSING
+        self.menu_system._handle_toc_processing()
+        assert self.menu_system.current_state == MenuState.TOC_CONFIRM_SAVE
+        assert "generated_toc_content" in self.menu_system.user_data # Check placeholder data was set
+
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_save_confirmation')
+    def test_handle_toc_confirm_save_yes(self, mock_prompt_save, mock_display_section_header):
+        """Test TOC confirm save handler when user says yes."""
+        mock_prompt_save.return_value = True
+        self.menu_system.user_data["generated_toc_content"] = "Test TOC"
+        self.menu_system.current_state = MenuState.TOC_CONFIRM_SAVE
+        self.menu_system._handle_toc_confirm_save()
+        assert self.menu_system.current_state == MenuState.KB_PROMPT
+        mock_prompt_save.assert_called_once_with("Test TOC", console=self.mock_console)
+        self.mock_console.print.assert_any_call("[green]Placeholder: TOC Saved[/green]")
+
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_save_confirmation')
+    def test_handle_toc_confirm_save_no(self, mock_prompt_save, mock_display_section_header):
+        """Test TOC confirm save handler when user says no."""
+        mock_prompt_save.return_value = False
+        self.menu_system.user_data["generated_toc_content"] = "Test TOC"
+        self.menu_system.current_state = MenuState.TOC_CONFIRM_SAVE
+        self.menu_system._handle_toc_confirm_save()
+        assert self.menu_system.current_state == MenuState.KB_PROMPT
+        mock_prompt_save.assert_called_once_with("Test TOC", console=self.mock_console)
+        self.mock_console.print.assert_any_call("[yellow]Placeholder: TOC Not Saved[/yellow]")
+
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_for_kb_generation')
+    def test_handle_kb_prompt_yes(self, mock_prompt_kb, mock_display_section_header):
+        """Test KB prompt handler when user says yes."""
+        mock_prompt_kb.return_value = True
+        self.menu_system.current_state = MenuState.KB_PROMPT
+        self.menu_system._handle_kb_prompt()
+        assert self.menu_system.current_state == MenuState.KB_PROCESSING
+        mock_prompt_kb.assert_called_once()
+
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_for_kb_generation')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_for_continue') # Also patch the continue prompt
+    def test_handle_kb_prompt_no_continue(self, mock_prompt_continue, mock_prompt_kb, mock_display_section_header):
+        """Test KB prompt handler when user says no, then wants to continue."""
+        mock_prompt_kb.return_value = False
+        mock_prompt_continue.return_value = True # User wants another conversion
+        self.menu_system.current_state = MenuState.KB_PROMPT
+        self.menu_system.user_data = {"some": "data"} # Add dummy data to check clearing
+        self.menu_system._handle_kb_prompt()
+        assert self.menu_system.current_state == MenuState.MAIN_MENU
+        assert self.menu_system.user_data == {} # Check user data was cleared
+        mock_prompt_kb.assert_called_once()
+        mock_prompt_continue.assert_called_once()
+
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_for_kb_generation')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_for_continue') # Also patch the continue prompt
+    def test_handle_kb_prompt_no_exit(self, mock_prompt_continue, mock_prompt_kb, mock_display_section_header):
+        """Test KB prompt handler when user says no, then wants to exit."""
+        mock_prompt_kb.return_value = False
+        mock_prompt_continue.return_value = False # User wants to exit
+        self.menu_system.current_state = MenuState.KB_PROMPT
+        self.menu_system._handle_kb_prompt()
+        assert self.menu_system.current_state == MenuState.EXIT
+        mock_prompt_kb.assert_called_once()
+        mock_prompt_continue.assert_called_once()
+
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    def test_handle_kb_processing(self, mock_display_section_header):
+        """Test KB processing handler (placeholder)."""
+        self.menu_system.current_state = MenuState.KB_PROCESSING
+        self.menu_system._handle_kb_processing()
+        assert self.menu_system.current_state == MenuState.KB_CONFIRM_SAVE
+        assert "generated_kb_content" in self.menu_system.user_data # Check placeholder data was set
+
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_save_confirmation')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_for_continue')
+    def test_handle_kb_confirm_save_yes_continue(self, mock_prompt_continue, mock_prompt_save, mock_display_section_header):
+        """Test KB confirm save handler when user says yes, then wants to continue."""
+        mock_prompt_save.return_value = True
+        mock_prompt_continue.return_value = True
+        self.menu_system.user_data = {"generated_kb_content": "Test KB", "other": "data"}
+        self.menu_system.current_state = MenuState.KB_CONFIRM_SAVE
+        self.menu_system._handle_kb_confirm_save()
+        assert self.menu_system.current_state == MenuState.MAIN_MENU
+        assert self.menu_system.user_data == {} # Check user data was cleared
+        mock_prompt_save.assert_called_once_with("Test KB", console=self.mock_console)
+        self.mock_console.print.assert_any_call("[green]Placeholder: KB Saved[/green]")
+        mock_prompt_continue.assert_called_once()
+
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_save_confirmation')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_for_continue')
+    def test_handle_kb_confirm_save_no_exit(self, mock_prompt_continue, mock_prompt_save, mock_display_section_header):
+        """Test KB confirm save handler when user says no, then wants to exit."""
+        mock_prompt_save.return_value = False
+        mock_prompt_continue.return_value = False
+        self.menu_system.user_data["generated_kb_content"] = "Test KB"
+        self.menu_system.current_state = MenuState.KB_CONFIRM_SAVE
+        self.menu_system._handle_kb_confirm_save()
+        assert self.menu_system.current_state == MenuState.EXIT
+        mock_prompt_save.assert_called_once_with("Test KB", console=self.mock_console)
+        self.mock_console.print.assert_any_call("[yellow]Placeholder: KB Not Saved[/yellow]")
+        mock_prompt_continue.assert_called_once()
+
+    # --- End tests for new placeholder handlers ---
+
     def test_transition_to(self):
         """Test transition to a new state."""
         # Start in main menu
@@ -462,7 +621,7 @@ class TestMenuSystem:
             self.menu_system._transition_to(state)
 
         # Check that history was limited to max_history
-        # History contains the states *before* the transition occurred
+        # history contains the states *before* the transition occurred
         # states[0] -> states[1] (history=[0])
         # states[1] -> states[2] (history=[0, 1])
         # states[2] -> states[3] (history=[0, 1, 2])

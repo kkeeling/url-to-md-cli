@@ -27,13 +27,16 @@ from rich.console import Console
 # Import menu components from templates
 from kb_for_prompt.templates.banner import display_banner, display_section_header
 from kb_for_prompt.templates.prompts import (
-    display_main_menu, 
-    prompt_for_url, 
-    prompt_for_file, 
+    display_main_menu,
+    prompt_for_url,
+    prompt_for_file,
     prompt_for_directory,
     prompt_for_output_directory,
-    prompt_for_continue,
+    prompt_for_continue, # Keep for potential future use, but removed from _handle_results
     prompt_for_retry,
+    prompt_for_toc_generation, # Import new prompts
+    prompt_for_kb_generation,
+    prompt_save_confirmation,
     MenuOption
 )
 from kb_for_prompt.templates.errors import (
@@ -63,22 +66,29 @@ class MenuState(Enum):
     PROCESSING = auto()
     BATCH_PROCESSING = auto()
     RESULTS = auto()
+    # New states for TOC and KB generation
+    TOC_PROMPT = auto()
+    TOC_PROCESSING = auto()
+    TOC_CONFIRM_SAVE = auto()
+    KB_PROMPT = auto()
+    KB_PROCESSING = auto()
+    KB_CONFIRM_SAVE = auto()
     EXIT = auto()
 
 
 class MenuSystem:
     """
     Interactive menu system for navigating between conversion modes.
-    
+
     This class manages the application's menu states, transitions between states,
     and user input handling. It uses a state machine approach with history tracking
     to enable navigation backwards through menus.
     """
-    
+
     def __init__(self, console: Optional[Console] = None):
         """
         Initialize the menu system.
-        
+
         Args:
             console: The Rich console to print to. If None, a new console is created.
         """
@@ -87,21 +97,21 @@ class MenuSystem:
         self.state_history = []
         self.user_data: Dict[str, Any] = {}
         self.max_history = 10  # Maximum number of states to keep in history
-        
+
     def run(self) -> int:
         """
         Start the menu system and handle the main loop.
-        
+
         This is the main entry point for the menu system that runs the application loop
         until the user chooses to exit or an unrecoverable error occurs.
-        
+
         Returns:
             int: Exit code (0 for normal exit, non-zero for error)
         """
         try:
             # Display the application banner
             display_banner(console=self.console)
-            
+
             # Start the main loop
             while self.current_state != MenuState.EXIT:
                 try:
@@ -117,11 +127,11 @@ class MenuSystem:
                     display_exception(e, show_traceback=True, console=self.console)
                     if not self._attempt_recovery(str(e)):
                         return 1
-            
+
             # Clean exit
             self.console.print("\n[green]Thank you for using kb-for-prompt![/green]\n")
             return 0
-            
+
         except KeyboardInterrupt:
             # Handle CTRL+C gracefully
             self.console.print("\n\n[yellow]Operation cancelled by user.[/yellow]")
@@ -129,18 +139,18 @@ class MenuSystem:
         except Exception as e:
             # Last-resort error handling for unexpected exceptions
             display_exception(
-                e, 
-                show_traceback=True, 
+                e,
+                show_traceback=True,
                 exit_program=False,
                 console=self.console
             )
             self.console.print("\n[bold red]An unexpected error occurred. The application will exit.[/bold red]")
             return 1
-    
+
     def _handle_current_state(self) -> None:
         """
         Process the current menu state and determine the next state.
-        
+
         This method uses a state machine approach to handle different menu states
         and transitions between them based on user input.
         """
@@ -167,19 +177,32 @@ class MenuSystem:
             self._handle_batch_processing()
         elif self.current_state == MenuState.RESULTS:
             self._handle_results()
-    
+        # Add branches for new states
+        elif self.current_state == MenuState.TOC_PROMPT:
+            self._handle_toc_prompt()
+        elif self.current_state == MenuState.TOC_PROCESSING:
+            self._handle_toc_processing()
+        elif self.current_state == MenuState.TOC_CONFIRM_SAVE:
+            self._handle_toc_confirm_save()
+        elif self.current_state == MenuState.KB_PROMPT:
+            self._handle_kb_prompt()
+        elif self.current_state == MenuState.KB_PROCESSING:
+            self._handle_kb_processing()
+        elif self.current_state == MenuState.KB_CONFIRM_SAVE:
+            self._handle_kb_confirm_save()
+
     def _handle_main_menu(self) -> None:
         """
         Handle the main menu state.
-        
+
         Display the main menu options and process the user's selection.
         """
         # Display a section header for the main menu
         display_section_header("Main Menu", console=self.console)
-        
+
         # Display the main menu options and get user choice
         choice = display_main_menu(console=self.console)
-        
+
         # Process the user's choice
         if choice == MenuOption.SINGLE_ITEM.value:
             self._transition_to(MenuState.SINGLE_ITEM_MENU)
@@ -187,15 +210,15 @@ class MenuSystem:
             self._transition_to(MenuState.BATCH_MENU)
         elif choice == MenuOption.EXIT.value:
             self._transition_to(MenuState.EXIT)
-    
+
     def _handle_single_item_menu(self) -> None:
         """
         Handle the single item conversion menu state.
-        
+
         Present options for URL or file conversion and process the selection.
         """
         display_section_header("Single Item Conversion", console=self.console)
-        
+
         # Present options for URL or file input
         self.console.print("\nWhat would you like to convert?")
         options = {
@@ -204,14 +227,14 @@ class MenuSystem:
             "b": "Go back to main menu",
             "0": "Exit application"
         }
-        
+
         for key, value in options.items():
             self.console.print(f"[green]{key}[/green]: {value}")
-        
+
         # Get user choice
         while True:
             choice = self.console.input("\nPlease select an option: ")
-            
+
             if choice == "1":
                 self._transition_to(MenuState.URL_INPUT)
                 break
@@ -226,7 +249,7 @@ class MenuSystem:
                 break
             else:
                 self.console.print("[bold yellow]Invalid option. Please try again.[/bold yellow]")
-    
+
     def _handle_batch_menu(self) -> None:
         """
         Handle the batch conversion menu state.
@@ -241,7 +264,7 @@ class MenuSystem:
         self.console.print("The CSV file can have one or multiple columns with inputs.")
 
         # Import the prompt_for_file function from templates
-        from kb_for_prompt.templates.prompts import prompt_for_file, prompt_for_continue
+        from kb_for_prompt.templates.prompts import prompt_for_file
 
         try:
             # Get CSV file path from user
@@ -267,53 +290,49 @@ class MenuSystem:
             self._transition_to(MenuState.MAIN_MENU, clear_history=True)
             return
 
-        # --- The code below this point originally existed here, but it ---
-        # --- should be handled after the OUTPUT_DIR_INPUT state.       ---
-        # --- It is removed as part of this fix.                        ---
-
     def _handle_url_input(self) -> None:
         """
         Handle the URL input state.
-        
+
         Prompt for a URL to convert and validate the input.
         """
         display_section_header("URL Input", console=self.console)
-        
+
         # Get URL from user
         url = prompt_for_url(console=self.console)
-        
+
         # Store URL in user data
         self.user_data["input_type"] = "url"
         self.user_data["input_path"] = url
-        
+
         # Transition to output directory selection
         self._transition_to(MenuState.OUTPUT_DIR_INPUT)
-    
+
     def _handle_file_input(self) -> None:
         """
         Handle the file input state.
-        
+
         Prompt for a file path to convert and validate the input.
         """
         display_section_header("File Input", console=self.console)
-        
+
         # Get file path from user
         file_path = prompt_for_file(
             message="Enter the path to the document file",
             file_types=["pdf", "doc", "docx"],
             console=self.console
         )
-        
+
         # Determine file type from extension
         file_type = file_path.suffix.lower()[1:]
-        
+
         # Store file information in user data
         self.user_data["input_type"] = file_type
         self.user_data["input_path"] = str(file_path)
-        
+
         # Transition to output directory selection
         self._transition_to(MenuState.OUTPUT_DIR_INPUT)
-    
+
     def _handle_output_dir_input(self) -> None:
         """
         Handle the output directory input state.
@@ -356,7 +375,7 @@ class MenuSystem:
         Display a summary of the conversion parameters and ask for confirmation.
         """
         # Import prompt functions needed
-        from kb_for_prompt.templates.prompts import prompt_for_continue
+        from kb_for_prompt.templates.prompts import prompt_for_continue # Re-import for this scope
 
         display_section_header("Confirmation", console=self.console)
 
@@ -381,7 +400,6 @@ class MenuSystem:
             # If SINGLE_ITEM_MENU not found, go back to the main menu as a fallback
             self._transition_to(MenuState.MAIN_MENU, clear_history=True)
 
-    # --- ADD A NEW HANDLER FOR BATCH CONFIRMATION ---
     def _handle_batch_confirmation(self) -> None:
         """
         Handle the confirmation state specifically for BATCH conversions.
@@ -389,7 +407,7 @@ class MenuSystem:
         Display batch details and ask for confirmation before processing.
         """
         # Import prompt functions needed
-        from kb_for_prompt.templates.prompts import prompt_for_continue
+        from kb_for_prompt.templates.prompts import prompt_for_continue # Re-import for this scope
 
         display_section_header("Batch Conversion Confirmation", console=self.console)
 
@@ -440,7 +458,6 @@ class MenuSystem:
         # Transition to the RESULTS state
         self._transition_to(MenuState.RESULTS)
 
-    # --- ADD A NEW HANDLER FOR BATCH PROCESSING ---
     def _handle_batch_processing(self) -> None:
         """
         Handle the processing state specifically for BATCH conversions.
@@ -479,11 +496,8 @@ class MenuSystem:
         """
         Handle the results state for both single and batch conversions.
 
-        Display the conversion results and prompt for next action.
+        Display the conversion results and transition to TOC prompt.
         """
-        # Import prompt functions needed
-        from kb_for_prompt.templates.prompts import prompt_for_continue
-
         # Check if it was a batch conversion by looking for specific keys in user_data
         is_batch_conversion = "batch_conversion_success" in self.user_data
 
@@ -542,18 +556,99 @@ class MenuSystem:
                 self.console.print("[bold yellow]Warning: Could not determine conversion type for results.[/bold yellow]")
 
 
-        # Ask if user wants to convert more items
+        # --- MODIFIED PART ---
+        # Instead of asking to continue, directly transition to TOC prompt
+        self.console.print("\n[bold]Proceeding to Table of Contents generation...[/bold]")
+        self._transition_to(MenuState.TOC_PROMPT)
+        # --- END MODIFIED PART ---
+
+    # --- NEW PLACEHOLDER HANDLERS ---
+
+    def _handle_toc_prompt(self) -> None:
+        """Handle prompting the user for TOC generation."""
+        display_section_header("Generate Table of Contents", console=self.console)
+        self.console.print("(Placeholder: TOC Prompt)")
+        # Placeholder logic: Ask if user wants TOC
+        if prompt_for_toc_generation(console=self.console):
+            self._transition_to(MenuState.TOC_PROCESSING)
+        else:
+            # If no TOC, skip to KB prompt
+            self._transition_to(MenuState.KB_PROMPT)
+
+    def _handle_toc_processing(self) -> None:
+        """Handle the TOC generation process."""
+        display_section_header("Generating Table of Contents", console=self.console)
+        self.console.print("(Placeholder: TOC Processing)")
+        # Placeholder logic: Simulate processing and transition to confirm save
+        # In real implementation, call LlmGenerator.generate_toc here
+        self.user_data["generated_toc_content"] = "# Placeholder TOC\n- Item 1\n- Item 2"
+        self._transition_to(MenuState.TOC_CONFIRM_SAVE)
+
+    def _handle_toc_confirm_save(self) -> None:
+        """Handle confirming and saving the generated TOC."""
+        display_section_header("Save Table of Contents", console=self.console)
+        self.console.print("(Placeholder: TOC Confirm Save)")
+        # Placeholder logic: Show preview and ask to save
+        toc_content = self.user_data.get("generated_toc_content", "No TOC generated.")
+        if prompt_save_confirmation(toc_content, console=self.console):
+            self.console.print("[green]Placeholder: TOC Saved[/green]")
+            # In real implementation, save the TOC file here
+        else:
+            self.console.print("[yellow]Placeholder: TOC Not Saved[/yellow]")
+        # Always transition to KB prompt after handling TOC save/skip
+        self._transition_to(MenuState.KB_PROMPT)
+
+    def _handle_kb_prompt(self) -> None:
+        """Handle prompting the user for KB generation."""
+        display_section_header("Generate Knowledge Base", console=self.console)
+        self.console.print("(Placeholder: KB Prompt)")
+        # Placeholder logic: Ask if user wants KB
+        if prompt_for_kb_generation(console=self.console):
+            self._transition_to(MenuState.KB_PROCESSING)
+        else:
+            # If no KB, the workflow for this run is complete.
+            # Ask if they want to start over or exit.
+            if prompt_for_continue("Would you like to perform another conversion?", console=self.console):
+                self.user_data = {} # Clear data for next run
+                self._transition_to(MenuState.MAIN_MENU, clear_history=True)
+            else:
+                self._transition_to(MenuState.EXIT)
+
+
+    def _handle_kb_processing(self) -> None:
+        """Handle the KB generation process."""
+        display_section_header("Generating Knowledge Base", console=self.console)
+        self.console.print("(Placeholder: KB Processing)")
+        # Placeholder logic: Simulate processing and transition to confirm save
+        # In real implementation, call LlmGenerator.generate_kb here
+        self.user_data["generated_kb_content"] = "<kb>\n<doc>Doc 1</doc>\n<doc>Doc 2</doc>\n</kb>"
+        self._transition_to(MenuState.KB_CONFIRM_SAVE)
+
+    def _handle_kb_confirm_save(self) -> None:
+        """Handle confirming and saving the generated KB."""
+        display_section_header("Save Knowledge Base", console=self.console)
+        self.console.print("(Placeholder: KB Confirm Save)")
+        # Placeholder logic: Show preview and ask to save
+        kb_content = self.user_data.get("generated_kb_content", "No KB generated.")
+        if prompt_save_confirmation(kb_content, console=self.console):
+            self.console.print("[green]Placeholder: KB Saved[/green]")
+            # In real implementation, save the KB file here
+        else:
+            self.console.print("[yellow]Placeholder: KB Not Saved[/yellow]")
+
+        # After KB save/skip, the workflow is complete. Ask to start over or exit.
         if prompt_for_continue("Would you like to perform another conversion?", console=self.console):
-            # Reset user data and go back to main menu
-            self.user_data = {}
+            self.user_data = {} # Clear data for next run
             self._transition_to(MenuState.MAIN_MENU, clear_history=True)
         else:
             self._transition_to(MenuState.EXIT)
-    
+
+    # --- END NEW PLACEHOLDER HANDLERS ---
+
     def _transition_to(self, new_state: MenuState, clear_history: bool = False) -> None:
         """
         Transition to a new menu state.
-        
+
         Args:
             new_state: The new state to transition to
             clear_history: Whether to clear the state history
@@ -561,22 +656,22 @@ class MenuSystem:
         # Add current state to history unless clearing history
         if not clear_history and self.current_state != MenuState.EXIT:
             self.state_history.append(self.current_state)
-            
+
             # Limit history size
             while len(self.state_history) > self.max_history:
                 self.state_history.pop(0)
-        
+
         # Clear history if requested
         if clear_history:
             self.state_history = []
-        
+
         # Set the new state
         self.current_state = new_state
-    
+
     def _go_back(self, steps: int = 1) -> None:
         """
         Go back to a previous menu state.
-        
+
         Args:
             steps: Number of steps to go back in the history
         """
@@ -584,26 +679,26 @@ class MenuSystem:
         if len(self.state_history) >= steps:
             # Get the target state
             target_state = self.state_history[-(steps)]
-            
+
             # Remove states from history
             for _ in range(steps):
                 if self.state_history:
                     self.state_history.pop()
-            
+
             # Set the current state to the target state
             self.current_state = target_state
         else:
             # Not enough history, go to main menu
             self.current_state = MenuState.MAIN_MENU
             self.state_history = []
-    
+
     def _handle_error(self, error: KbForPromptError) -> bool:
         """
         Handle known application errors with recovery options.
-        
+
         Args:
             error: The error that occurred
-            
+
         Returns:
             bool: True if recovery was successful, False otherwise
         """
@@ -628,17 +723,17 @@ class MenuSystem:
                 title="Error",
                 console=self.console
             )
-        
+
         # Attempt recovery
         return self._attempt_recovery(error.message)
-    
+
     def _attempt_recovery(self, error_message: str) -> bool:
         """
         Attempt to recover from an error.
-        
+
         Args:
             error_message: The error message to display
-            
+
         Returns:
             bool: True if recovery was successful, False otherwise
         """
@@ -649,14 +744,14 @@ class MenuSystem:
             "2": "Go to main menu",
             "0": "Exit application"
         }
-        
+
         for key, value in options.items():
             self.console.print(f"[green]{key}[/green]: {value}")
-        
+
         # Get user choice
         while True:
             choice = self.console.input("\nPlease select a recovery option: ")
-            
+
             if choice == "1":
                 self._go_back()
                 return True
