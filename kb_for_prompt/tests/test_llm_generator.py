@@ -3,6 +3,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 import sys
+import logging
 
 # Import rich here, as LlmGenerator uses it.
 # If rich itself was problematic, we might use pytest.importorskip("rich")
@@ -25,11 +26,25 @@ def mock_console():
     # Using MagicMock with spec ensures the mock behaves like a Console instance
     return MagicMock(spec=Console)
 
+# Fixture to create a mock LLM client
+@pytest.fixture
+def mock_llm_client():
+    """Fixture to create a mock LLM client."""
+    mock_client = MagicMock()
+    mock_client.generate.return_value = "# Sample TOC\n\n- [Document 1](doc1.md)\n- [Document 2](doc2.md)"
+    return mock_client
+
 # Fixture to create an LlmGenerator instance with a mock console
 @pytest.fixture
 def generator(mock_console):
     """Fixture to create an LlmGenerator instance with a mock console."""
     return LlmGenerator(console=mock_console)
+
+# Fixture to create an LlmGenerator instance with both mock console and mock LLM client
+@pytest.fixture
+def generator_with_llm(mock_console, mock_llm_client):
+    """Fixture to create an LlmGenerator instance with a mock console and mock LLM client."""
+    return LlmGenerator(console=mock_console, llm_client=mock_llm_client)
 
 def test_scan_empty_directory(generator, tmp_path):
     """Test scanning an empty directory returns an empty documents XML."""
@@ -258,3 +273,125 @@ def test_scan_skips_unreadable_subdir_via_rglob_behavior(generator, mock_console
                  print(f"Unexpected console call found: {args[0]}") # Debugging output
                  break
     assert not found_unexpected_call, "Console should not have logged warnings about skipping the directory itself."
+
+# Tests for generate_toc method
+
+def test_generate_toc_success(generator_with_llm, tmp_path):
+    """Test successful generation of TOC from markdown files."""
+    # Create test files
+    md_file1 = tmp_path / "file1.md"
+    md_file1.write_text("# Document 1\n\nContent of file 1.", encoding="utf-8")
+
+    subdir = tmp_path / "subdir"
+    subdir.mkdir()
+    md_file2 = subdir / "file2.md"
+    md_file2.write_text("# Document 2\n\nContent from subdir.", encoding="utf-8")
+    
+    # Call generate_toc
+    result = generator_with_llm.generate_toc(tmp_path)
+    
+    # Assert result is the mock response
+    assert result == "# Sample TOC\n\n- [Document 1](doc1.md)\n- [Document 2](doc2.md)"
+    
+    # Assert LLM client was called with correct parameters
+    assert generator_with_llm.llm_client.generate.called
+    args, kwargs = generator_with_llm.llm_client.generate.call_args
+    
+    # Check prompt content
+    assert "You are a documentation indexing assistant" in kwargs["prompt"]
+    assert "{{documents}}" not in kwargs["prompt"]  # Placeholder should be replaced
+    assert "<document" in kwargs["prompt"]  # XML should be injected
+    
+    # Check model alias
+    assert kwargs["model_alias"] == "gemini/gemini-2.5-pro-preview-03-25"
+
+def test_generate_toc_no_documents(generator_with_llm, tmp_path):
+    """Test TOC generation with no markdown files."""
+    # Create a directory with no markdown files
+    txt_file = tmp_path / "not_markdown.txt"
+    txt_file.write_text("This is not a markdown file.", encoding="utf-8")
+    
+    # Call generate_toc
+    with patch("logging.info") as mock_log:
+        result = generator_with_llm.generate_toc(tmp_path)
+    
+    # Assert result is None
+    assert result is None
+    
+    # Assert LLM client was not called
+    assert not generator_with_llm.llm_client.generate.called
+    
+    # Assert appropriate log message
+    mock_log.assert_called_once()
+    assert "No markdown documents found" in mock_log.call_args[0][0]
+
+def test_generate_toc_llm_error(generator_with_llm, tmp_path):
+    """Test handling of LLM client errors during TOC generation."""
+    # Create a test file to ensure there's content
+    md_file = tmp_path / "file.md"
+    md_file.write_text("# Document\n\nContent.", encoding="utf-8")
+    
+    # Configure LLM client to raise an exception
+    generator_with_llm.llm_client.generate.side_effect = Exception("LLM API error")
+    
+    # Call generate_toc with logging capture
+    with patch("logging.error") as mock_log:
+        result = generator_with_llm.generate_toc(tmp_path)
+    
+    # Assert result is None
+    assert result is None
+    
+    # Assert error was logged
+    mock_log.assert_called_once()
+    assert "LLM call failed for TOC generation" in mock_log.call_args[0][0]
+
+def test_generate_toc_without_llm_client(generator, tmp_path):
+    """Test TOC generation without an LLM client."""
+    # Create a test file to ensure there's content
+    md_file = tmp_path / "file.md"
+    md_file.write_text("# Document\n\nContent.", encoding="utf-8")
+    
+    # Call generate_toc with logging capture
+    with patch("logging.warning") as mock_log:
+        result = generator.generate_toc(tmp_path)
+    
+    # Assert result is None
+    assert result is None
+    
+    # Assert warning was logged
+    mock_log.assert_called_once()
+    assert "No LLM client provided" in mock_log.call_args[0][0]
+
+def test_generate_toc_scan_error(generator_with_llm, tmp_path):
+    """Test TOC generation when scanning fails."""
+    # Mock scan_and_build_xml to raise an exception
+    with patch.object(LlmGenerator, "scan_and_build_xml", side_effect=FileIOError(message="Test error", file_path=str(tmp_path), operation="read")):
+        with patch("logging.error") as mock_log:
+            result = generator_with_llm.generate_toc(tmp_path)
+    
+    # Assert result is None
+    assert result is None
+    
+    # Assert error was logged
+    mock_log.assert_called_once()
+    assert "Failed to generate TOC" in mock_log.call_args[0][0]
+    
+    # Assert LLM client was not called
+    assert not generator_with_llm.llm_client.generate.called
+
+def test_generate_toc_malformed_xml(generator_with_llm):
+    """Test TOC generation with malformed XML."""
+    # Create a test mock to return malformed XML
+    with patch.object(LlmGenerator, "scan_and_build_xml", return_value="<documents><document>Unclosed tag</documents>"):
+        with patch("logging.error") as mock_log:
+            result = generator_with_llm.generate_toc("dummy_path")
+    
+    # Assert result is None
+    assert result is None
+    
+    # Assert error about malformed XML was logged
+    mock_log.assert_called_once()
+    assert "Malformed XML data" in mock_log.call_args[0][0]
+    
+    # Assert LLM client was not called
+    assert not generator_with_llm.llm_client.generate.called
