@@ -38,6 +38,11 @@ from .prompts import (
     prompt_for_output_directory,
     prompt_for_retry,
     prompt_for_url,
+    prompt_for_toc_generation,
+    prompt_for_kb_generation,
+    prompt_save_confirmation,
+    prompt_overwrite_rename,
+    prompt_retry_generation,
 )
 from .summary import display_conversion_summary, display_dataframe_summary
 
@@ -53,6 +58,11 @@ __all__ = [
     "prompt_for_url",
     "prompt_for_retry",
     "prompt_for_continue",
+    "prompt_for_toc_generation",
+    "prompt_for_kb_generation",
+    "prompt_save_confirmation",
+    "prompt_overwrite_rename",
+    "prompt_retry_generation",
     # progress.py
     "display_spinner",
     "display_processing_update",
