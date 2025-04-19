@@ -197,7 +197,7 @@ class MenuSystem:
         elif self.current_state == MenuState.KB_PROMPT:
             self._handle_kb_prompt()
         elif self.current_state == MenuState.KB_PROCESSING:
-            self._handle_kb_processing()
+            self._handle_kb_processing() # Call the implemented handler
         elif self.current_state == MenuState.KB_CONFIRM_SAVE:
             self._handle_kb_confirm_save()
 
@@ -786,41 +786,57 @@ class MenuSystem:
 
 
     def _handle_kb_processing(self) -> None:
-        """Handle the KB generation process."""
-        display_section_header("Generating Knowledge Base", console=self.console)
-        self.console.print("(Placeholder: KB Processing)")
-        # Placeholder logic: Simulate processing and transition to confirm save
-        # In real implementation, call LlmGenerator.generate_kb here
-        # Example:
-        # output_dir_str = self.user_data.get('output_dir')
-        # kb_content = None
-        # if output_dir_str:
-        #     try:
-        #         output_dir = Path(output_dir_str)
-        #         with display_spinner("Calling LLM for KB generation...", console=self.console) as spinner:
-        #             kb_content = self.llm_generator.generate_kb(output_dir)
-        #             if kb_content:
-        #                 spinner.succeed("KB generation successful.")
-        #             else:
-        #                 spinner.fail("KB generation failed or returned no content.")
-        #     except Exception as e:
-        #         logging.error(f"Error during KB generation: {e}", exc_info=True)
-        #         self.console.print(f"[red]Error during KB generation: {e}[/red]")
-        # else:
-        #     logging.error("Output directory missing for KB generation.")
-        #     self.console.print("[red]Output directory missing, cannot generate KB.[/red]")
-        # self.user_data["generated_kb_content"] = kb_content
-        # if kb_content:
-        #     self._transition_to(MenuState.KB_CONFIRM_SAVE)
-        # else:
-        #     self.console.print("[yellow]Skipping KB saving due to generation failure or error.[/yellow]")
-        #     # Ask to continue or exit after failed KB gen
-        #     self._ask_convert_another() # Use the helper method
+        """
+        Handle the Knowledge Base (KB) generation process using LlmGenerator.
 
-        # --- Using simpler placeholder for now ---
-        self.user_data["generated_kb_content"] = "<kb>\n<doc>Doc 1</doc>\n<doc>Doc 2</doc>\n</kb>"
-        self._transition_to(MenuState.KB_CONFIRM_SAVE)
-        # --- End simpler placeholder ---
+        Retrieves the output directory, calls the LLM generator, handles
+        potential errors, stores the result, and transitions to the next state.
+        """
+        display_section_header("Generating Knowledge Base", console=self.console)
+
+        # Retrieve output directory from user data
+        output_dir_str = self.user_data.get('output_dir')
+        if not output_dir_str:
+            self.console.print("[bold red]Error: Output directory not found in user data. Skipping KB generation.[/bold red]")
+            logging.error("Output directory missing in user_data during KB processing.")
+            self._ask_convert_another() # Ask to continue/exit
+            return
+
+        try:
+            output_dir = Path(output_dir_str)
+        except Exception as e:
+            self.console.print(f"[bold red]Error: Invalid output directory path '{output_dir_str}'. Skipping KB generation.[/bold red]")
+            logging.error(f"Invalid output directory path '{output_dir_str}': {e}", exc_info=True)
+            self._ask_convert_another() # Ask to continue/exit
+            return
+
+        kb_content = None # Initialize kb_content
+        try:
+            # Use spinner while calling the LLM
+            with display_spinner("Calling LLM for KB generation...", console=self.console) as spinner:
+                # Call the LlmGenerator to generate the KB
+                kb_content = self.llm_generator.generate_kb(output_dir)
+                if kb_content is None:
+                    spinner.fail("KB generation failed or returned no content.")
+                else:
+                    spinner.succeed("KB generation successful.")
+
+        except Exception as e:
+            # Log the exception and inform the user
+            logging.error(f"An unexpected error occurred during KB generation: {e}", exc_info=True)
+            self.console.print(f"\n[bold red]An error occurred during KB generation: {e}[/bold red]")
+            kb_content = None # Ensure kb_content is None on error
+
+        # Store the generated content (or None if failed/error)
+        self.user_data['generated_kb_content'] = kb_content
+
+        # Transition based on whether KB content was generated
+        if kb_content is not None:
+            self._transition_to(MenuState.KB_CONFIRM_SAVE)
+        else:
+            # If generation failed or an error occurred, skip confirmation and ask to continue/exit
+            self.console.print("[yellow]Skipping KB saving due to generation failure or error.[/yellow]")
+            self._ask_convert_another()
 
 
     def _handle_kb_confirm_save(self) -> None:
@@ -841,25 +857,30 @@ class MenuSystem:
             preview += "\n[italic](... preview truncated ...)[/italic]"
 
         if prompt_save_confirmation(preview, console=self.console): # Use preview
-            self.console.print("[green]Placeholder: KB Saved[/green]")
-            # In real implementation, save the KB file here
-            # Example:
-            # output_dir_str = self.user_data.get("output_dir")
-            # if output_dir_str:
-            #     try:
-            #         output_dir = Path(output_dir_str)
-            #         kb_file_path = output_dir / "KNOWLEDGE_BASE.xml" # Or .md depending on format
-            #         save_success = self._save_content_to_file(kb_content, kb_file_path)
-            #         if save_success:
-            #             self.console.print(f"[green]KB saved to {kb_file_path}[/green]")
-            #         else:
-            #             self.console.print("[yellow]KB saving failed.[/yellow]")
-            #     except Exception as e:
-            #         self.console.print(f"[red]Error saving KB: {e}[/red]")
-            #         logging.error(f"Failed to save KB: {e}", exc_info=True)
-            # else:
-            #     self.console.print("[red]Error: Output directory not found, cannot save KB.[/red]")
-            #     logging.error("Output directory missing for KB save.")
+            # User confirmed save - determine target path
+            output_dir_str = self.user_data.get("output_dir")
+            if output_dir_str:
+                try:
+                    output_dir = Path(output_dir_str)
+                    # Assuming KB is saved as XML based on prompt description
+                    kb_file_path = output_dir / "knowledge_base.xml"
+                    self.console.print(f"Attempting to save KB to: {kb_file_path}")
+
+                    # Call the save method
+                    save_success = self._save_content_to_file(kb_content, kb_file_path)
+
+                    # Handle save result
+                    if save_success:
+                        self.console.print(f"[green]KB saved successfully to {kb_file_path}.[/green]")
+                    else:
+                        self.console.print("[yellow]KB saving failed. Check error messages above.[/yellow]")
+
+                except Exception as e:
+                    logging.error(f"Error preparing to save KB: {e}", exc_info=True)
+                    self.console.print(f"[bold red]Error preparing to save KB:[/bold red] {e}")
+            else:
+                self.console.print("[bold red]Error: Output directory not found, cannot save KB.[/bold red]")
+                logging.error("Output directory missing for KB save.")
         else:
             self.console.print("[yellow]Knowledge Base not saved.[/yellow]")
 
