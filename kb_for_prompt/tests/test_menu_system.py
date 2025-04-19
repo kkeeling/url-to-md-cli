@@ -9,6 +9,10 @@ import os # Import os for path operations if needed
 
 # Assume menu_system.py is in the same directory or accessible via PYTHONPATH
 # Adjust the import path based on your project structure
+import sys
+from pathlib import Path
+
+# Try the standard import path first
 try:
     from kb_for_prompt.organisms.menu_system import MenuSystem, MenuState
     # Assuming templates are accessible relative to menu_system or via PYTHONPATH
@@ -24,20 +28,27 @@ try:
     )
 except ImportError:
     # Fallback for running the test file directly
-    from menu_system import MenuSystem, MenuState
-    import sys
-    # Add parent directory to sys.path if templates are there
-    sys.path.append(str(Path(__file__).parent.parent / 'templates'))
-    import prompts
-    import banner
-    from progress import display_spinner
-    # Import specific prompts needed for testing
-    from prompts import (
-        prompt_save_confirmation,
-        prompt_retry_generation,
-        prompt_for_continue,
-        prompt_overwrite_rename # Import the new prompt
-    )
+    # Add the parent directory to sys.path to find the kb_for_prompt package
+    sys.path.append(str(Path(__file__).parent.parent.parent))
+    
+    try:
+        # Now try the imports again with the adjusted path
+        from kb_for_prompt.organisms.menu_system import MenuSystem, MenuState
+        from kb_for_prompt.templates import prompts
+        from kb_for_prompt.templates import banner
+        from kb_for_prompt.templates.progress import display_spinner
+        from kb_for_prompt.templates.prompts import (
+            prompt_save_confirmation,
+            prompt_retry_generation,
+            prompt_for_continue,
+            prompt_overwrite_rename
+        )
+    except ImportError as e:
+        # If still failing, provide more detailed error
+        print(f"Import error: {e}")
+        print(f"Current sys.path: {sys.path}")
+        print(f"Looking for file at: {Path(__file__).parent.parent.parent / 'kb_for_prompt' / 'organisms' / 'menu_system.py'}")
+        raise
 
 
 class TestMenuSystemTocConfirmSave(unittest.TestCase):
