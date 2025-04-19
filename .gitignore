@@ -12,3 +12,5 @@ __pycache__
 
 .mcp.json
 .aider*
+# Exclude tests directories that aren't part of the package structure
+/tests/

@@ -12,6 +12,7 @@ Follow these instructions to fully implement a feature.
 1. Read the spec file for the feature: named `spec.md` to understand the feature you are implementing
 2. Read the todo list for the feature: named `todo.md` to understand the tasks you need to complete. You can refer to this todo list to see the tasks already completed and those that are still pending.
 3. Starting with the first incomplete task in the todo list, complete every task in the todo list in the order they are listed. Never jump ahead or skip a task. For each task, follow the instructions in the next section.
+4. ** ALWAYS ** After completing a task, move on to the next task in the todo list.
 
 ## How to complete tasks in the todo list
 

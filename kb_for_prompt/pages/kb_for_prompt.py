@@ -8,6 +8,7 @@
 #     "pandas",
 #     "docling",
 #     "pytest",
+#     "litellm",
 # ]
 # ///
 
@@ -51,7 +52,7 @@ from rich.console import Console
 from kb_for_prompt.organisms.menu_system import MenuSystem
 from kb_for_prompt.organisms.single_item_converter import SingleItemConverter
 from kb_for_prompt.organisms.batch_converter import BatchConverter
-from kb_for_prompt.organisms.llm_client import SimpleLlmClient # Import the new client
+from kb_for_prompt.organisms.llm_client import LiteLlmClient # Import the new client
 from kb_for_prompt.templates.banner import display_banner
 
 # Define version directly to avoid import issues during direct execution
@@ -89,7 +90,7 @@ def main(url: Optional[str], file: Optional[str], batch: Optional[str],
         # --- Interactive Menu Flow ---
         # Instantiate the LLM client (using the simple simulator for now)
         # In a real application, you might load API keys or configure a real client here.
-        llm_client = SimpleLlmClient()
+        llm_client = LiteLlmClient()
 
         # Instantiate the menu system, passing the console and the LLM client
         menu_system = MenuSystem(console=console, llm_client=llm_client)
