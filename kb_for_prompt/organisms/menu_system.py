@@ -565,10 +565,20 @@ class MenuSystem:
     # --- NEW PLACEHOLDER HANDLERS ---
 
     def _handle_toc_prompt(self) -> None:
-        """Handle prompting the user for TOC generation."""
+        """
+        Handle prompting the user whether to generate a Table of Contents (TOC).
+
+        This method explains the TOC generation step and uses the
+        `prompt_for_toc_generation` function to get the user's choice.
+        Based on the response, it transitions to either the TOC processing state
+        or skips directly to the Knowledge Base (KB) prompt state.
+        """
         display_section_header("Generate Table of Contents", console=self.console)
-        self.console.print("(Placeholder: TOC Prompt)")
-        # Placeholder logic: Ask if user wants TOC
+        self.console.print("\nAfter conversion, you can optionally generate a Table of Contents (TOC)")
+        self.console.print("for the Markdown files in the output directory using an LLM.")
+        self.console.print("This helps organize the converted documents.")
+
+        # Ask if user wants TOC
         if prompt_for_toc_generation(console=self.console):
             self._transition_to(MenuState.TOC_PROCESSING)
         else:
