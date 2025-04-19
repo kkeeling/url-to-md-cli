@@ -38,7 +38,7 @@ from kb_for_prompt.templates.prompts import (
     prompt_for_toc_generation, # Import new prompts
     prompt_for_kb_generation,
     prompt_save_confirmation,
-    prompt_retry_generation, # Import for TOC retry functionality
+    prompt_retry_generation, # Import for TOC/KB retry functionality
     MenuOption
 )
 from kb_for_prompt.templates.errors import (
@@ -199,7 +199,7 @@ class MenuSystem:
         elif self.current_state == MenuState.KB_PROCESSING:
             self._handle_kb_processing() # Call the implemented handler
         elif self.current_state == MenuState.KB_CONFIRM_SAVE:
-            self._handle_kb_confirm_save()
+            self._handle_kb_confirm_save() # Call the implemented handler
 
     def _handle_main_menu(self) -> None:
         """
@@ -815,12 +815,19 @@ class MenuSystem:
             # Use spinner while calling the LLM
             with display_spinner("Calling LLM for KB generation...", console=self.console) as spinner:
                 # Call the LlmGenerator to generate the KB
-                kb_content = self.llm_generator.generate_kb(output_dir)
+                # Assuming LlmGenerator has a generate_kb method similar to generate_toc
+                # If not, this needs adjustment based on LlmGenerator's actual interface
+                kb_content = self.llm_generator.generate_kb(output_dir) # Assuming generate_kb exists
                 if kb_content is None:
                     spinner.fail("KB generation failed or returned no content.")
                 else:
                     spinner.succeed("KB generation successful.")
 
+        except AttributeError:
+             # Handle case where generate_kb doesn't exist on llm_generator
+            logging.error("LlmGenerator does not have a 'generate_kb' method.", exc_info=True)
+            self.console.print("[bold red]Error: KB generation functionality is not available.[/bold red]")
+            kb_content = None
         except Exception as e:
             # Log the exception and inform the user
             logging.error(f"An unexpected error occurred during KB generation: {e}", exc_info=True)
@@ -840,52 +847,78 @@ class MenuSystem:
 
 
     def _handle_kb_confirm_save(self) -> None:
-        """Handle confirming and saving the generated KB."""
+        """
+        Handle confirming and saving the generated Knowledge Base (KB).
+
+        Retrieves generated KB content and output directory from user_data,
+        creates a preview, asks for confirmation, and either saves the file
+        or asks if the user wants to retry generation. Then transitions to
+        the appropriate next state (ask to convert another or retry).
+        """
         display_section_header("Save Knowledge Base", console=self.console)
+
+        # Retrieve the content from user_data
         kb_content = self.user_data.get("generated_kb_content")
+        output_dir_str = self.user_data.get("output_dir")
 
+        # Handle missing content case
         if kb_content is None:
-            self.console.print("[yellow]No Knowledge Base content available to save.[/yellow]")
-            # Ask to continue or exit even if KB content is None here
-            self._ask_convert_another() # Use the helper method
-            return # Exit the handler
+            self.console.print("[bold red]Error:[/bold red] KB content not found in user data. Cannot proceed with saving.")
+            self._ask_convert_another() # Ask to continue/exit
+            return
 
-        # Generate preview (first 50 lines) - Assuming KB might be large
+        # Handle missing output_dir case
+        if not output_dir_str:
+            self.console.print("[bold red]Error:[/bold red] Output directory not found in user data. Cannot determine save location.")
+            self._ask_convert_another() # Ask to continue/exit
+            return
+
+        # Generate preview (first 50 lines)
         lines = kb_content.splitlines()[:50]
         preview = "\n".join(lines)
+
+        # Add indicator if content was truncated for preview
         if len(kb_content.splitlines()) > 50:
             preview += "\n[italic](... preview truncated ...)[/italic]"
 
-        if prompt_save_confirmation(preview, console=self.console): # Use preview
+        # Ask user whether to save
+        if prompt_save_confirmation(preview, console=self.console):
             # User confirmed save - determine target path
-            output_dir_str = self.user_data.get("output_dir")
-            if output_dir_str:
-                try:
-                    output_dir = Path(output_dir_str)
-                    # Assuming KB is saved as XML based on prompt description
-                    kb_file_path = output_dir / "knowledge_base.xml"
-                    self.console.print(f"Attempting to save KB to: {kb_file_path}")
+            try:
+                output_dir = Path(output_dir_str)
+                # Assuming KB is saved as XML based on prompt description
+                target_path = output_dir / "knowledge_base.xml"
 
-                    # Call the save method
-                    save_success = self._save_content_to_file(kb_content, kb_file_path)
+                self.console.print(f"Attempting to save KB to: {target_path}")
 
-                    # Handle save result
-                    if save_success:
-                        self.console.print(f"[green]KB saved successfully to {kb_file_path}.[/green]")
-                    else:
-                        self.console.print("[yellow]KB saving failed. Check error messages above.[/yellow]")
+                # Call the save method
+                save_success = self._save_content_to_file(kb_content, target_path)
 
-                except Exception as e:
-                    logging.error(f"Error preparing to save KB: {e}", exc_info=True)
-                    self.console.print(f"[bold red]Error preparing to save KB:[/bold red] {e}")
-            else:
-                self.console.print("[bold red]Error: Output directory not found, cannot save KB.[/bold red]")
-                logging.error("Output directory missing for KB save.")
+                # Handle save result
+                if save_success:
+                    self.console.print(f"[green]KB saved successfully to {target_path}.[/green]")
+                else:
+                    self.console.print("[yellow]KB saving failed. Check error messages above.[/yellow]")
+
+                # After attempting save, ask to convert another
+                self._ask_convert_another()
+
+            except Exception as e:
+                logging.error(f"Error preparing to save KB: {e}", exc_info=True)
+                self.console.print(f"[bold red]Error preparing to save KB:[/bold red] {e}")
+                self._ask_convert_another() # Ask to continue/exit even on error
         else:
-            self.console.print("[yellow]Knowledge Base not saved.[/yellow]")
+            # User declined to save - ask about retrying
+            self.console.print("Save cancelled by user.")
 
-        # After KB save/skip, the workflow is complete. Ask to start over or exit.
-        self._ask_convert_another() # Use the helper method
+            if prompt_retry_generation("KB generation", console=self.console):
+                # User wants to retry
+                self.console.print("Retrying KB generation...")
+                self._transition_to(MenuState.KB_PROCESSING)
+            else:
+                # User doesn't want to retry
+                self.console.print("Skipping KB generation retry.")
+                self._ask_convert_another() # Ask to continue/exit
 
     # --- END NEW PLACEHOLDER HANDLERS ---
 
