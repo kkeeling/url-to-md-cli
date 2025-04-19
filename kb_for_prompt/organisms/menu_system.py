@@ -38,6 +38,7 @@ from kb_for_prompt.templates.prompts import (
     prompt_for_toc_generation, # Import new prompts
     prompt_for_kb_generation,
     prompt_save_confirmation,
+    prompt_overwrite_rename, # Import for file saving logic
     prompt_retry_generation, # Import for TOC/KB retry functionality
     MenuOption
 )
@@ -653,29 +654,58 @@ class MenuSystem:
 
     def _save_content_to_file(self, content: str, target_path: Path) -> bool:
         """
-        Save content to a file.
-
-        This is a placeholder method that will be fully implemented in Task 8/9.
+        Save content to a file, handling existing files and potential errors.
 
         Args:
-            content: The content to save
-            target_path: Path where the content should be saved
+            content: The string content to save.
+            target_path: The Path object representing the desired save location.
 
         Returns:
-            bool: True if save was successful, False otherwise
+            bool: True if the file was saved successfully, False otherwise (including cancellation).
         """
-        logging.warning(f"_save_content_to_file is using placeholder implementation to save to {target_path}")
+        current_target_path = target_path # Keep track of the path we intend to write to
 
         try:
-            # Ensure the parent directory exists
-            target_path.parent.mkdir(parents=True, exist_ok=True)
+            # Check if the file already exists
+            if current_target_path.exists():
+                choice, new_filename = prompt_overwrite_rename(str(current_target_path), console=self.console)
 
-            # Write the content to the file
-            target_path.write_text(content, encoding="utf-8")
+                if choice == "overwrite":
+                    self.console.print(f"Overwriting existing file: {current_target_path}")
+                elif choice == "rename":
+                    if new_filename:
+                        # Construct the new path in the same directory
+                        new_path = current_target_path.parent / new_filename
+                        self.console.print(f"Renaming file to: {new_path}")
+                        current_target_path = new_path # Update the target path
+                    else:
+                        # Should not happen if prompt_overwrite_rename works correctly, but handle defensively
+                        self.console.print("[bold red]Error:[/bold red] Rename chosen but no new filename provided. Save cancelled.")
+                        return False
+                elif choice == "cancel":
+                    self.console.print("Save operation cancelled by user.")
+                    return False
+                else:
+                    # Should not happen
+                    self.console.print(f"[bold red]Error:[/bold red] Unexpected choice '{choice}' from prompt. Save cancelled.")
+                    return False
+
+            # Ensure the parent directory exists (might be needed for renamed files too)
+            current_target_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Write the content to the final target file
+            current_target_path.write_text(content, encoding="utf-8")
+            logging.info(f"Successfully saved content to {current_target_path}")
             return True
+
+        except (IOError, OSError) as e:
+            logging.error(f"Failed to save content to {current_target_path}: {e}", exc_info=True)
+            self.console.print(f"[bold red]Error saving file {current_target_path}:[/bold red] {e}")
+            return False
         except Exception as e:
-            logging.error(f"Failed to save content to {target_path}: {e}", exc_info=True)
-            self.console.print(f"[bold red]Error saving file:[/bold red] {e}")
+            # Catch any other unexpected errors during the process
+            logging.error(f"An unexpected error occurred during file save to {current_target_path}: {e}", exc_info=True)
+            self.console.print(f"[bold red]An unexpected error occurred while saving file {current_target_path}:[/bold red] {e}")
             return False
 
     def _handle_toc_confirm_save(self) -> None:
@@ -720,27 +750,31 @@ class MenuSystem:
                 output_dir = Path(output_dir_str)
                 target_path = output_dir / "toc.md"
 
-                self.console.print(f"Attempting to save TOC to: {target_path}")
+                self.console.print(f"Preparing to save TOC to: {target_path}")
 
-                # Call the save method
+                # Call the enhanced save method
                 save_success = self._save_content_to_file(toc_content, target_path)
 
                 # Handle save result
                 if save_success:
-                    self.console.print(f"[green]TOC saved successfully.[/green]")
+                    # Message is now printed inside _save_content_to_file or if renamed
+                    # self.console.print(f"[green]TOC saved successfully.[/green]") # Redundant now
+                    pass # Success message handled by save function or rename logic
                 else:
-                    self.console.print("[yellow]TOC saving failed. Check error messages above.[/yellow]")
+                    # Failure or cancellation message handled by save function
+                    # self.console.print("[yellow]TOC saving failed or cancelled. Check messages above.[/yellow]") # Redundant now
+                    pass
 
-                # Transition to KB prompt regardless of save outcome
+                # Transition to KB prompt regardless of save outcome (unless cancelled, which returns False)
                 self._transition_to(MenuState.KB_PROMPT)
 
             except Exception as e:
                 logging.error(f"Error preparing to save TOC: {e}", exc_info=True)
                 self.console.print(f"[bold red]Error preparing to save TOC:[/bold red] {e}")
-                self._transition_to(MenuState.KB_PROMPT)
+                self._transition_to(MenuState.KB_PROMPT) # Still transition
         else:
             # User declined to save - ask about retrying
-            self.console.print("Save cancelled by user.")
+            self.console.print("Save confirmation declined by user.")
 
             if prompt_retry_generation("TOC generation", console=self.console):
                 # User wants to retry
@@ -889,18 +923,20 @@ class MenuSystem:
                 # Assuming KB is saved as XML based on prompt description
                 target_path = output_dir / "knowledge_base.xml"
 
-                self.console.print(f"Attempting to save KB to: {target_path}")
+                self.console.print(f"Preparing to save KB to: {target_path}")
 
-                # Call the save method
+                # Call the enhanced save method
                 save_success = self._save_content_to_file(kb_content, target_path)
 
                 # Handle save result
                 if save_success:
-                    self.console.print(f"[green]KB saved successfully to {target_path}.[/green]")
+                    # Success message handled by save function or rename logic
+                    pass
                 else:
-                    self.console.print("[yellow]KB saving failed. Check error messages above.[/yellow]")
+                    # Failure or cancellation message handled by save function
+                    pass
 
-                # After attempting save, ask to convert another
+                # After attempting save (success or handled failure), ask to convert another
                 self._ask_convert_another()
 
             except Exception as e:
@@ -909,7 +945,7 @@ class MenuSystem:
                 self._ask_convert_another() # Ask to continue/exit even on error
         else:
             # User declined to save - ask about retrying
-            self.console.print("Save cancelled by user.")
+            self.console.print("Save confirmation declined by user.")
 
             if prompt_retry_generation("KB generation", console=self.console):
                 # User wants to retry
