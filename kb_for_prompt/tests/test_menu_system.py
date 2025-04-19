@@ -24,7 +24,7 @@ Tests for kb_for_prompt.organisms.menu_system module.
 import os
 import sys
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, ANY # Import ANY
 from io import StringIO
 from pathlib import Path # Import Path
 
@@ -34,13 +34,17 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 # Import necessary components AFTER adjusting sys.path
 from kb_for_prompt.organisms.menu_system import MenuSystem, MenuState
 from kb_for_prompt.atoms.error_utils import ValidationError, ConversionError
+# Import LlmGenerator for patching target reference if needed
+from kb_for_prompt.organisms.llm_generator import LlmGenerator
 # Import Confirm for patching target reference if needed, although string target is preferred
 from rich.prompt import Confirm
 
 
+# Removed class-level patch for LlmGenerator
 class TestMenuSystem:
     """Test cases for the menu system module."""
 
+    # Updated setup_method: removed mock_llm_generator_class param, added mock_llm_client
     def setup_method(self):
         """Set up test fixtures for each test method."""
         # Create a mock console
@@ -48,12 +52,20 @@ class TestMenuSystem:
         self.mock_console.input = MagicMock()
         self.mock_console.print = MagicMock()
 
-        # Create the menu system with the mock console
-        self.menu_system = MenuSystem(console=self.mock_console)
+        # Create a mock LLM client
+        self.mock_llm_client = MagicMock()
+
+        # Create the menu system with the mock console and mock llm_client
+        self.menu_system = MenuSystem(console=self.mock_console, llm_client=self.mock_llm_client)
+        # The MenuSystem now internally creates an LlmGenerator instance
+        # using self.mock_llm_client. We will patch LlmGenerator methods
+        # directly on self.menu_system.llm_generator in specific tests.
+
 
     @patch('kb_for_prompt.organisms.menu_system.display_banner')
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('kb_for_prompt.organisms.menu_system.display_main_menu')
+    # Removed mock_llm_generator_class from signature
     def test_main_menu_single_item(self, mock_display_main_menu, mock_display_section_header, mock_display_banner):
         """Test main menu with single item selection."""
         # Set up the mock to return the single item option
@@ -73,6 +85,7 @@ class TestMenuSystem:
     @patch('kb_for_prompt.organisms.menu_system.display_banner')
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('kb_for_prompt.organisms.menu_system.display_main_menu')
+    # Removed mock_llm_generator_class from signature
     def test_main_menu_batch(self, mock_display_main_menu, mock_display_section_header, mock_display_banner):
         """Test main menu with batch selection."""
         # Set up the mock to return the batch option
@@ -87,6 +100,7 @@ class TestMenuSystem:
     @patch('kb_for_prompt.organisms.menu_system.display_banner')
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('kb_for_prompt.organisms.menu_system.display_main_menu')
+    # Removed mock_llm_generator_class from signature
     def test_main_menu_exit(self, mock_display_main_menu, mock_display_section_header, mock_display_banner):
         """Test main menu with exit selection."""
         # Set up the mock to return the exit option
@@ -99,6 +113,7 @@ class TestMenuSystem:
         assert self.menu_system.current_state == MenuState.EXIT
 
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    # Removed mock_llm_generator_class from signature
     def test_single_item_menu(self, mock_display_section_header):
         """Test single item menu with URL selection."""
         # Set up the mock to return the URL option
@@ -111,6 +126,7 @@ class TestMenuSystem:
         assert self.menu_system.current_state == MenuState.URL_INPUT
 
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    # Removed mock_llm_generator_class from signature
     def test_single_item_menu_file(self, mock_display_section_header):
         """Test single item menu with file selection."""
         # Set up the mock to return the file option
@@ -123,6 +139,7 @@ class TestMenuSystem:
         assert self.menu_system.current_state == MenuState.FILE_INPUT
 
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    # Removed mock_llm_generator_class from signature
     def test_single_item_menu_back(self, mock_display_section_header):
         """Test single item menu with back selection."""
         # Set up the menu system with a history entry
@@ -140,6 +157,7 @@ class TestMenuSystem:
         assert len(self.menu_system.state_history) == 0 # History is popped by _go_back
 
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    # Removed mock_llm_generator_class from signature
     def test_single_item_menu_invalid_then_valid(self, mock_display_section_header):
         """Test single item menu with invalid input followed by valid input."""
         # Set up the mock to return an invalid option followed by a valid option
@@ -156,6 +174,7 @@ class TestMenuSystem:
 
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('kb_for_prompt.organisms.menu_system.prompt_for_url')
+    # Removed mock_llm_generator_class from signature
     def test_url_input(self, mock_prompt_for_url, mock_display_section_header):
         """Test URL input handling."""
         # Set up the mock to return a URL
@@ -174,6 +193,7 @@ class TestMenuSystem:
 
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('kb_for_prompt.organisms.menu_system.prompt_for_file')
+    # Removed mock_llm_generator_class from signature
     def test_file_input(self, mock_prompt_for_file, mock_display_section_header):
         """Test file input handling."""
         # Set up the mock to return a file path object
@@ -195,6 +215,7 @@ class TestMenuSystem:
     # Patch the function *where it is imported* within the handler
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('kb_for_prompt.templates.prompts.prompt_for_output_directory') # Corrected patch target
+    # Removed mock_llm_generator_class from signature
     def test_output_dir_input(self, mock_prompt_for_output_directory, mock_display_section_header):
         """Test output directory input handling for single item flow."""
         # Set up the mock to return a real Path object
@@ -228,6 +249,7 @@ class TestMenuSystem:
     # Patch Confirm.ask directly to prevent actual stdin read
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('rich.prompt.Confirm.ask')
+    # Removed mock_llm_generator_class from signature
     def test_confirmation_proceed(self, mock_confirm_ask, mock_display_section_header):
         """Test confirmation with proceed option."""
         # Set up the mock for Confirm.ask to return True (proceed)
@@ -260,6 +282,7 @@ class TestMenuSystem:
     # Patch Confirm.ask directly to prevent actual stdin read
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('rich.prompt.Confirm.ask')
+    # Removed mock_llm_generator_class from signature
     def test_confirmation_go_back(self, mock_confirm_ask, mock_display_section_header):
         """Test confirmation with go back option."""
         # Set up the mock for Confirm.ask to return False (go back)
@@ -291,6 +314,7 @@ class TestMenuSystem:
         mock_confirm_ask.assert_called_once()
 
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    # Removed mock_llm_generator_class from signature
     def test_results_transition_to_toc_prompt(self, mock_display_section_header):
         """Test that the results handler transitions to TOC_PROMPT."""
         # Set up minimal user data to indicate a successful single conversion
@@ -320,6 +344,7 @@ class TestMenuSystem:
 
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('kb_for_prompt.organisms.menu_system.prompt_for_toc_generation')
+    # Removed mock_llm_generator_class from signature
     def test_handle_toc_prompt_yes(self, mock_prompt_toc, mock_display_section_header):
         """Test TOC prompt handler when user says yes."""
         mock_prompt_toc.return_value = True
@@ -330,6 +355,7 @@ class TestMenuSystem:
 
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('kb_for_prompt.organisms.menu_system.prompt_for_toc_generation')
+    # Removed mock_llm_generator_class from signature
     def test_handle_toc_prompt_no(self, mock_prompt_toc, mock_display_section_header):
         """Test TOC prompt handler when user says no."""
         mock_prompt_toc.return_value = False
@@ -338,16 +364,172 @@ class TestMenuSystem:
         assert self.menu_system.current_state == MenuState.KB_PROMPT
         mock_prompt_toc.assert_called_once()
 
+    # --- Tests for implemented _handle_toc_processing ---
+
+    # Removed class patch, added instance method patch
+    @patch.object(LlmGenerator, 'generate_toc', autospec=True)
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
-    def test_handle_toc_processing(self, mock_display_section_header):
-        """Test TOC processing handler (placeholder)."""
+    @patch('kb_for_prompt.organisms.menu_system.display_spinner')
+    @patch('kb_for_prompt.organisms.menu_system.logging') # Patch logging
+    # Added mock_generate_toc, removed mock_llm_generator_class
+    def test_handle_toc_processing_success(self, mock_logging, mock_display_spinner, mock_display_section_header, mock_generate_toc):
+        """Test TOC processing handler on successful LLM generation."""
+        # Mock the spinner context manager
+        mock_spinner_instance = MagicMock()
+        mock_display_spinner.return_value.__enter__.return_value = mock_spinner_instance
+
+        # Set up user data with output directory
+        test_output_dir = "/fake/output"
+        self.menu_system.user_data['output_dir'] = test_output_dir
+        # Mock the LlmGenerator's generate_toc method to return content
+        expected_toc = "# Generated TOC\n- Item 1"
+        # Configure the mock instance method directly
+        mock_generate_toc.return_value = expected_toc
+
+        # Set initial state
         self.menu_system.current_state = MenuState.TOC_PROCESSING
+
+        # Run the handler
         self.menu_system._handle_toc_processing()
+
+        # Verify display_spinner was called
+        mock_display_spinner.assert_called_once_with("Calling LLM for TOC generation...", console=self.mock_console)
+        # Verify LlmGenerator.generate_toc was called on the instance with the correct Path object
+        # The first argument to the mocked method is the instance itself (self.menu_system.llm_generator)
+        mock_generate_toc.assert_called_once_with(self.menu_system.llm_generator, Path(test_output_dir))
+        # Verify spinner success was called
+        mock_spinner_instance.succeed.assert_called_once_with("TOC generation successful.")
+        # Verify user_data was updated
+        assert self.menu_system.user_data['generated_toc_content'] == expected_toc
+        # Verify state transition
         assert self.menu_system.current_state == MenuState.TOC_CONFIRM_SAVE
-        assert "generated_toc_content" in self.menu_system.user_data # Check placeholder data was set
+        # Verify no error logs
+        mock_logging.error.assert_not_called()
+
+    # Removed class patch, added instance method patch
+    @patch.object(LlmGenerator, 'generate_toc', autospec=True)
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    @patch('kb_for_prompt.organisms.menu_system.display_spinner')
+    @patch('kb_for_prompt.organisms.menu_system.logging') # Patch logging
+    # Added mock_generate_toc, removed mock_llm_generator_class
+    def test_handle_toc_processing_failure(self, mock_logging, mock_display_spinner, mock_display_section_header, mock_generate_toc):
+        """Test TOC processing handler when LLM generation returns None."""
+        # Mock the spinner context manager
+        mock_spinner_instance = MagicMock()
+        mock_display_spinner.return_value.__enter__.return_value = mock_spinner_instance
+
+        # Set up user data with output directory
+        test_output_dir = "/fake/output"
+        self.menu_system.user_data['output_dir'] = test_output_dir
+        # Mock the LlmGenerator's generate_toc method to return None
+        mock_generate_toc.return_value = None
+
+        # Set initial state
+        self.menu_system.current_state = MenuState.TOC_PROCESSING
+
+        # Run the handler
+        self.menu_system._handle_toc_processing()
+
+        # Verify display_spinner was called
+        mock_display_spinner.assert_called_once_with("Calling LLM for TOC generation...", console=self.mock_console)
+        # Verify LlmGenerator.generate_toc was called
+        mock_generate_toc.assert_called_once_with(self.menu_system.llm_generator, Path(test_output_dir))
+        # Verify spinner fail was called
+        mock_spinner_instance.fail.assert_called_once_with("TOC generation failed or returned no content.")
+        # Verify user_data was updated to None
+        assert self.menu_system.user_data['generated_toc_content'] is None
+        # Verify state transition directly to KB_PROMPT
+        assert self.menu_system.current_state == MenuState.KB_PROMPT
+        # Verify warning message was printed
+        self.mock_console.print.assert_any_call("[yellow]Skipping TOC saving due to generation failure or error.[/yellow]")
+        # Verify no error logs
+        mock_logging.error.assert_not_called()
+
+    # Removed class patch, added instance method patch
+    @patch.object(LlmGenerator, 'generate_toc', autospec=True)
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    @patch('kb_for_prompt.organisms.menu_system.display_spinner')
+    @patch('kb_for_prompt.organisms.menu_system.logging') # Patch logging
+    # Added mock_generate_toc, removed mock_llm_generator_class
+    def test_handle_toc_processing_exception(self, mock_logging, mock_display_spinner, mock_display_section_header, mock_generate_toc):
+        """Test TOC processing handler when LLM generation raises an exception."""
+        # Mock the spinner context manager
+        mock_spinner_instance = MagicMock()
+        mock_display_spinner.return_value.__enter__.return_value = mock_spinner_instance
+
+        # Set up user data with output directory
+        test_output_dir = "/fake/output"
+        self.menu_system.user_data['output_dir'] = test_output_dir
+        # Mock the LlmGenerator's generate_toc method to raise an exception
+        test_exception = ValueError("LLM API Error")
+        mock_generate_toc.side_effect = test_exception
+
+        # Set initial state
+        self.menu_system.current_state = MenuState.TOC_PROCESSING
+
+        # Run the handler
+        self.menu_system._handle_toc_processing()
+
+        # Verify display_spinner was called
+        mock_display_spinner.assert_called_once_with("Calling LLM for TOC generation...", console=self.mock_console)
+        # Verify LlmGenerator.generate_toc was called
+        mock_generate_toc.assert_called_once_with(self.menu_system.llm_generator, Path(test_output_dir))
+        # Verify spinner was not told to succeed or fail (exception happened within context)
+        mock_spinner_instance.succeed.assert_not_called()
+        mock_spinner_instance.fail.assert_not_called()
+        # Verify error was logged
+        mock_logging.error.assert_called_once_with(f"An unexpected error occurred during TOC generation: {test_exception}", exc_info=True)
+        # Verify error message was printed to console
+        self.mock_console.print.assert_any_call(f"\n[bold red]An error occurred during TOC generation: {test_exception}[/bold red]")
+        # Verify user_data was set to None
+        assert self.menu_system.user_data['generated_toc_content'] is None
+        # Verify state transition directly to KB_PROMPT
+        assert self.menu_system.current_state == MenuState.KB_PROMPT
+        # Verify warning message was printed
+        self.mock_console.print.assert_any_call("[yellow]Skipping TOC saving due to generation failure or error.[/yellow]")
+
+    # This test doesn't call generate_toc, so the original class patch is okay,
+    # but patching the instance method (even though it won't be called) is also fine.
+    # Let's keep the class patch here for simplicity as it works.
+    @patch('kb_for_prompt.organisms.menu_system.LlmGenerator', autospec=True)
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    @patch('kb_for_prompt.organisms.menu_system.display_spinner')
+    @patch('kb_for_prompt.organisms.menu_system.logging') # Patch logging
+    # Added mock_llm_generator_class to signature (as it's used by the patch)
+    def test_handle_toc_processing_missing_output_dir(self, mock_logging, mock_display_spinner, mock_display_section_header, mock_llm_generator_class):
+        """Test TOC processing handler when output_dir is missing from user_data."""
+        # Get the mock LlmGenerator instance (created by the patch)
+        mock_llm_instance = mock_llm_generator_class.return_value
+
+        # Ensure output_dir is NOT in user_data
+        self.menu_system.user_data = {}
+
+        # Set initial state
+        self.menu_system.current_state = MenuState.TOC_PROCESSING
+
+        # Run the handler
+        self.menu_system._handle_toc_processing()
+
+        # Verify LlmGenerator's generate_toc method was NOT called
+        mock_llm_instance.generate_toc.assert_not_called()
+
+        # Verify spinner was NOT called
+        mock_display_spinner.assert_not_called()
+        # Verify error was logged
+        mock_logging.error.assert_called_once_with("Output directory missing in user_data during TOC processing.")
+        # Verify error message was printed to console
+        self.mock_console.print.assert_any_call("[bold red]Error: Output directory not found in user data. Skipping TOC generation.[/bold red]")
+        # Verify user_data does not contain the toc content key
+        assert 'generated_toc_content' not in self.menu_system.user_data
+        # Verify state transition directly to KB_PROMPT
+        assert self.menu_system.current_state == MenuState.KB_PROMPT
+
+    # --- End tests for implemented _handle_toc_processing ---
+
 
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('kb_for_prompt.organisms.menu_system.prompt_save_confirmation')
+    # Removed mock_llm_generator_class from signature
     def test_handle_toc_confirm_save_yes(self, mock_prompt_save, mock_display_section_header):
         """Test TOC confirm save handler when user says yes."""
         mock_prompt_save.return_value = True
@@ -360,6 +542,7 @@ class TestMenuSystem:
 
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('kb_for_prompt.organisms.menu_system.prompt_save_confirmation')
+    # Removed mock_llm_generator_class from signature
     def test_handle_toc_confirm_save_no(self, mock_prompt_save, mock_display_section_header):
         """Test TOC confirm save handler when user says no."""
         mock_prompt_save.return_value = False
@@ -368,10 +551,11 @@ class TestMenuSystem:
         self.menu_system._handle_toc_confirm_save()
         assert self.menu_system.current_state == MenuState.KB_PROMPT
         mock_prompt_save.assert_called_once_with("Test TOC", console=self.mock_console)
-        self.mock_console.print.assert_any_call("[yellow]Placeholder: TOC Not Saved[/yellow]")
+        self.mock_console.print.assert_any_call("[yellow]Table of Contents not saved.[/yellow]") # Adjusted message check
 
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('kb_for_prompt.organisms.menu_system.prompt_for_kb_generation')
+    # Removed mock_llm_generator_class from signature
     def test_handle_kb_prompt_yes(self, mock_prompt_kb, mock_display_section_header):
         """Test KB prompt handler when user says yes."""
         mock_prompt_kb.return_value = True
@@ -383,6 +567,7 @@ class TestMenuSystem:
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('kb_for_prompt.organisms.menu_system.prompt_for_kb_generation')
     @patch('kb_for_prompt.organisms.menu_system.prompt_for_continue') # Also patch the continue prompt
+    # Removed mock_llm_generator_class from signature
     def test_handle_kb_prompt_no_continue(self, mock_prompt_continue, mock_prompt_kb, mock_display_section_header):
         """Test KB prompt handler when user says no, then wants to continue."""
         mock_prompt_kb.return_value = False
@@ -398,6 +583,7 @@ class TestMenuSystem:
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('kb_for_prompt.organisms.menu_system.prompt_for_kb_generation')
     @patch('kb_for_prompt.organisms.menu_system.prompt_for_continue') # Also patch the continue prompt
+    # Removed mock_llm_generator_class from signature
     def test_handle_kb_prompt_no_exit(self, mock_prompt_continue, mock_prompt_kb, mock_display_section_header):
         """Test KB prompt handler when user says no, then wants to exit."""
         mock_prompt_kb.return_value = False
@@ -408,17 +594,27 @@ class TestMenuSystem:
         mock_prompt_kb.assert_called_once()
         mock_prompt_continue.assert_called_once()
 
+    # Keeping class patch here as generate_kb is not actually called by placeholder
+    @patch('kb_for_prompt.organisms.menu_system.LlmGenerator', autospec=True)
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
-    def test_handle_kb_processing(self, mock_display_section_header):
+    # Added mock_llm_generator_class to signature
+    def test_handle_kb_processing(self, mock_display_section_header, mock_llm_generator_class):
         """Test KB processing handler (placeholder)."""
+        # Get the mock LlmGenerator instance (even if not used by current placeholder)
+        mock_llm_instance = mock_llm_generator_class.return_value
+
         self.menu_system.current_state = MenuState.KB_PROCESSING
         self.menu_system._handle_kb_processing()
+
+        # We don't check constructor call or generate_kb call due to placeholder nature
+
         assert self.menu_system.current_state == MenuState.KB_CONFIRM_SAVE
         assert "generated_kb_content" in self.menu_system.user_data # Check placeholder data was set
 
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('kb_for_prompt.organisms.menu_system.prompt_save_confirmation')
     @patch('kb_for_prompt.organisms.menu_system.prompt_for_continue')
+    # Removed mock_llm_generator_class from signature
     def test_handle_kb_confirm_save_yes_continue(self, mock_prompt_continue, mock_prompt_save, mock_display_section_header):
         """Test KB confirm save handler when user says yes, then wants to continue."""
         mock_prompt_save.return_value = True
@@ -435,6 +631,7 @@ class TestMenuSystem:
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('kb_for_prompt.organisms.menu_system.prompt_save_confirmation')
     @patch('kb_for_prompt.organisms.menu_system.prompt_for_continue')
+    # Removed mock_llm_generator_class from signature
     def test_handle_kb_confirm_save_no_exit(self, mock_prompt_continue, mock_prompt_save, mock_display_section_header):
         """Test KB confirm save handler when user says no, then wants to exit."""
         mock_prompt_save.return_value = False
@@ -444,11 +641,12 @@ class TestMenuSystem:
         self.menu_system._handle_kb_confirm_save()
         assert self.menu_system.current_state == MenuState.EXIT
         mock_prompt_save.assert_called_once_with("Test KB", console=self.mock_console)
-        self.mock_console.print.assert_any_call("[yellow]Placeholder: KB Not Saved[/yellow]")
+        self.mock_console.print.assert_any_call("[yellow]Knowledge Base not saved.[/yellow]") # Adjusted message check
         mock_prompt_continue.assert_called_once()
 
     # --- End tests for new placeholder handlers ---
 
+    # Removed mock_llm_generator_class from signature
     def test_transition_to(self):
         """Test transition to a new state."""
         # Start in main menu
@@ -468,6 +666,7 @@ class TestMenuSystem:
         assert self.menu_system.current_state == MenuState.URL_INPUT
         assert self.menu_system.state_history == [MenuState.MAIN_MENU, MenuState.SINGLE_ITEM_MENU]
 
+    # Removed mock_llm_generator_class from signature
     def test_transition_to_clear_history(self):
         """Test transition to a new state with history clearing."""
         # Set up some history
@@ -483,6 +682,7 @@ class TestMenuSystem:
         assert self.menu_system.current_state == MenuState.URL_INPUT
         assert self.menu_system.state_history == []
 
+    # Removed mock_llm_generator_class from signature
     def test_go_back(self):
         """Test going back to a previous state."""
         # Set up some history
@@ -510,6 +710,7 @@ class TestMenuSystem:
         expected_history = initial_history[:-2] # Removes last 2 elements
         assert self.menu_system.state_history == expected_history
 
+    # Removed mock_llm_generator_class from signature
     def test_go_back_multiple_steps(self):
         """Test going back multiple steps at once."""
         # Set up some history
@@ -530,6 +731,7 @@ class TestMenuSystem:
         expected_history = initial_history[:-2] # Removes last 2 elements
         assert self.menu_system.state_history == expected_history
 
+    # Removed mock_llm_generator_class from signature
     def test_go_back_insufficient_history(self):
         """Test going back more steps than available in history."""
         # Set up minimal history
@@ -544,6 +746,7 @@ class TestMenuSystem:
         assert len(self.menu_system.state_history) == 0
 
     @patch('kb_for_prompt.organisms.menu_system.display_validation_error')
+    # Removed mock_llm_generator_class from signature
     def test_handle_validation_error(self, mock_display_validation_error):
         """Test handling of validation errors."""
         # Create a validation error
@@ -570,6 +773,7 @@ class TestMenuSystem:
         assert self.menu_system.state_history == [] # History cleared on transition to main menu
 
     @patch('kb_for_prompt.organisms.menu_system.display_error')
+    # Removed mock_llm_generator_class from signature
     def test_handle_conversion_error(self, mock_display_error):
         """Test handling of conversion errors."""
         # Create a conversion error
@@ -598,6 +802,7 @@ class TestMenuSystem:
         assert self.menu_system.current_state == MenuState.SINGLE_ITEM_MENU
         assert self.menu_system.state_history == [MenuState.MAIN_MENU]
 
+    # Removed mock_llm_generator_class from signature
     def test_limit_history_size(self):
         """Test that history size is limited."""
         # Set a small max history
@@ -631,3 +836,4 @@ class TestMenuSystem:
         # Check that only the most recent states are kept
         expected_history = states[1:4] # states[1], states[2], states[3]
         assert self.menu_system.state_history == expected_history
+

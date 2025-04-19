@@ -19,8 +19,9 @@ navigation flow with history tracking to enable going back to previous states.
 """
 
 import sys
+import logging # Added import
 from enum import Enum, auto
-from pathlib import Path
+from pathlib import Path # Added import
 from typing import Dict, List, Optional, Tuple, Union, Any, Callable
 from rich.console import Console
 
@@ -44,6 +45,8 @@ from kb_for_prompt.templates.errors import (
     display_validation_error,
     display_exception
 )
+# Added import for spinner
+from kb_for_prompt.templates.progress import display_spinner
 
 # Import errors
 from kb_for_prompt.atoms.error_utils import (
@@ -51,6 +54,8 @@ from kb_for_prompt.atoms.error_utils import (
     ValidationError,
     ConversionError
 )
+# Import LlmGenerator
+from kb_for_prompt.organisms.llm_generator import LlmGenerator
 
 
 class MenuState(Enum):
@@ -85,18 +90,22 @@ class MenuSystem:
     to enable navigation backwards through menus.
     """
 
-    def __init__(self, console: Optional[Console] = None):
+    def __init__(self, console: Optional[Console] = None, llm_client: Optional[Any] = None):
         """
         Initialize the menu system.
 
         Args:
             console: The Rich console to print to. If None, a new console is created.
+            llm_client: Optional LLM client to pass to LlmGenerator.
         """
         self.console = console or Console()
         self.current_state = MenuState.MAIN_MENU
         self.state_history = []
         self.user_data: Dict[str, Any] = {}
         self.max_history = 10  # Maximum number of states to keep in history
+        # Instantiate LlmGenerator, passing console and optional llm_client
+        self.llm_generator = LlmGenerator(console=self.console, llm_client=llm_client)
+
 
     def run(self) -> int:
         """
@@ -181,7 +190,7 @@ class MenuSystem:
         elif self.current_state == MenuState.TOC_PROMPT:
             self._handle_toc_prompt()
         elif self.current_state == MenuState.TOC_PROCESSING:
-            self._handle_toc_processing()
+            self._handle_toc_processing() # Call the implemented handler
         elif self.current_state == MenuState.TOC_CONFIRM_SAVE:
             self._handle_toc_confirm_save()
         elif self.current_state == MenuState.KB_PROMPT:
@@ -586,32 +595,99 @@ class MenuSystem:
             self._transition_to(MenuState.KB_PROMPT)
 
     def _handle_toc_processing(self) -> None:
-        """Handle the TOC generation process."""
+        """
+        Handle the TOC generation process using LlmGenerator.
+
+        Retrieves the output directory, calls the LLM generator, handles
+        potential errors, stores the result, and transitions to the next state.
+        """
         display_section_header("Generating Table of Contents", console=self.console)
-        self.console.print("(Placeholder: TOC Processing)")
-        # Placeholder logic: Simulate processing and transition to confirm save
-        # In real implementation, call LlmGenerator.generate_toc here
-        self.user_data["generated_toc_content"] = "# Placeholder TOC\n- Item 1\n- Item 2"
-        self._transition_to(MenuState.TOC_CONFIRM_SAVE)
+
+        # Retrieve output directory from user data
+        output_dir_str = self.user_data.get('output_dir')
+        if not output_dir_str:
+            self.console.print("[bold red]Error: Output directory not found in user data. Skipping TOC generation.[/bold red]")
+            logging.error("Output directory missing in user_data during TOC processing.")
+            self._transition_to(MenuState.KB_PROMPT) # Skip to KB prompt
+            return
+
+        try:
+            output_dir = Path(output_dir_str)
+        except Exception as e:
+            self.console.print(f"[bold red]Error: Invalid output directory path '{output_dir_str}'. Skipping TOC generation.[/bold red]")
+            logging.error(f"Invalid output directory path '{output_dir_str}': {e}", exc_info=True)
+            self._transition_to(MenuState.KB_PROMPT) # Skip to KB prompt
+            return
+
+        toc_content = None # Initialize toc_content
+        try:
+            # Use spinner while calling the LLM
+            with display_spinner("Calling LLM for TOC generation...", console=self.console) as spinner:
+                # Call the LlmGenerator to generate the TOC
+                # Note: This requires self.llm_generator to be initialized with a working client
+                # or it will likely return None based on LlmGenerator's internal checks.
+                toc_content = self.llm_generator.generate_toc(output_dir)
+                if toc_content is None:
+                    spinner.fail("TOC generation failed or returned no content.")
+                else:
+                    spinner.succeed("TOC generation successful.")
+
+        except Exception as e:
+            # Log the exception and inform the user
+            logging.error(f"An unexpected error occurred during TOC generation: {e}", exc_info=True)
+            self.console.print(f"\n[bold red]An error occurred during TOC generation: {e}[/bold red]")
+            toc_content = None # Ensure toc_content is None on error
+
+        # Store the generated content (or None if failed/error)
+        self.user_data['generated_toc_content'] = toc_content
+
+        # Transition based on whether TOC content was generated
+        if toc_content is not None:
+            self._transition_to(MenuState.TOC_CONFIRM_SAVE)
+        else:
+            # If generation failed or an error occurred, skip confirmation and go to KB prompt
+            self.console.print("[yellow]Skipping TOC saving due to generation failure or error.[/yellow]")
+            self._transition_to(MenuState.KB_PROMPT)
+
 
     def _handle_toc_confirm_save(self) -> None:
         """Handle confirming and saving the generated TOC."""
         display_section_header("Save Table of Contents", console=self.console)
-        self.console.print("(Placeholder: TOC Confirm Save)")
+        # self.console.print("(Placeholder: TOC Confirm Save)") # Remove placeholder print
         # Placeholder logic: Show preview and ask to save
-        toc_content = self.user_data.get("generated_toc_content", "No TOC generated.")
+        toc_content = self.user_data.get("generated_toc_content") # No default needed, handled in _handle_toc_processing
+
+        # Ensure we only proceed if toc_content is valid
+        if toc_content is None:
+             self.console.print("[yellow]No Table of Contents content available to save.[/yellow]")
+             self._transition_to(MenuState.KB_PROMPT) # Skip to KB prompt
+             return
+
         if prompt_save_confirmation(toc_content, console=self.console):
             self.console.print("[green]Placeholder: TOC Saved[/green]")
             # In real implementation, save the TOC file here
+            # Example:
+            # output_dir = Path(self.user_data.get("output_dir", "."))
+            # toc_file_path = output_dir / "TABLE_OF_CONTENTS.md"
+            # try:
+            #     toc_file_path.write_text(toc_content, encoding="utf-8")
+            #     self.console.print(f"[green]TOC saved to {toc_file_path}[/green]")
+            # except Exception as e:
+            #     self.console.print(f"[red]Error saving TOC: {e}[/red]")
+            #     logging.error(f"Failed to save TOC to {toc_file_path}: {e}", exc_info=True)
         else:
-            self.console.print("[yellow]Placeholder: TOC Not Saved[/yellow]")
+            self.console.print("[yellow]Table of Contents not saved.[/yellow]") # Adjusted message
+
         # Always transition to KB prompt after handling TOC save/skip
         self._transition_to(MenuState.KB_PROMPT)
 
     def _handle_kb_prompt(self) -> None:
         """Handle prompting the user for KB generation."""
         display_section_header("Generate Knowledge Base", console=self.console)
-        self.console.print("(Placeholder: KB Prompt)")
+        self.console.print("\nOptionally, generate a Knowledge Base (KB) in XML format")
+        self.console.print("from the Markdown files using an LLM.")
+        self.console.print("This can be useful for further processing or RAG systems.")
+
         # Placeholder logic: Ask if user wants KB
         if prompt_for_kb_generation(console=self.console):
             self._transition_to(MenuState.KB_PROCESSING)
@@ -631,20 +707,73 @@ class MenuSystem:
         self.console.print("(Placeholder: KB Processing)")
         # Placeholder logic: Simulate processing and transition to confirm save
         # In real implementation, call LlmGenerator.generate_kb here
+        # Example:
+        # output_dir_str = self.user_data.get('output_dir')
+        # kb_content = None
+        # if output_dir_str:
+        #     try:
+        #         output_dir = Path(output_dir_str)
+        #         with display_spinner("Calling LLM for KB generation...", console=self.console) as spinner:
+        #             kb_content = self.llm_generator.generate_kb(output_dir)
+        #             if kb_content:
+        #                 spinner.succeed("KB generation successful.")
+        #             else:
+        #                 spinner.fail("KB generation failed or returned no content.")
+        #     except Exception as e:
+        #         logging.error(f"Error during KB generation: {e}", exc_info=True)
+        #         self.console.print(f"[red]Error during KB generation: {e}[/red]")
+        # else:
+        #     logging.error("Output directory missing for KB generation.")
+        #     self.console.print("[red]Output directory missing, cannot generate KB.[/red]")
+        # self.user_data["generated_kb_content"] = kb_content
+        # if kb_content:
+        #     self._transition_to(MenuState.KB_CONFIRM_SAVE)
+        # else:
+        #     self.console.print("[yellow]Skipping KB saving due to generation failure or error.[/yellow]")
+        #     # Ask to continue or exit after failed KB gen
+        #     if prompt_for_continue("Would you like to perform another conversion?", console=self.console):
+        #         self.user_data = {}
+        #         self._transition_to(MenuState.MAIN_MENU, clear_history=True)
+        #     else:
+        #         self._transition_to(MenuState.EXIT)
+
+        # --- Using simpler placeholder for now ---
         self.user_data["generated_kb_content"] = "<kb>\n<doc>Doc 1</doc>\n<doc>Doc 2</doc>\n</kb>"
         self._transition_to(MenuState.KB_CONFIRM_SAVE)
+        # --- End simpler placeholder ---
+
 
     def _handle_kb_confirm_save(self) -> None:
         """Handle confirming and saving the generated KB."""
         display_section_header("Save Knowledge Base", console=self.console)
-        self.console.print("(Placeholder: KB Confirm Save)")
+        # self.console.print("(Placeholder: KB Confirm Save)") # Remove placeholder print
         # Placeholder logic: Show preview and ask to save
-        kb_content = self.user_data.get("generated_kb_content", "No KB generated.")
+        kb_content = self.user_data.get("generated_kb_content") # No default needed
+
+        if kb_content is None:
+            self.console.print("[yellow]No Knowledge Base content available to save.[/yellow]")
+            # Ask to continue or exit even if KB content is None here
+            if prompt_for_continue("Would you like to perform another conversion?", console=self.console):
+                self.user_data = {} # Clear data for next run
+                self._transition_to(MenuState.MAIN_MENU, clear_history=True)
+            else:
+                self._transition_to(MenuState.EXIT)
+            return # Exit the handler
+
         if prompt_save_confirmation(kb_content, console=self.console):
             self.console.print("[green]Placeholder: KB Saved[/green]")
             # In real implementation, save the KB file here
+            # Example:
+            # output_dir = Path(self.user_data.get("output_dir", "."))
+            # kb_file_path = output_dir / "KNOWLEDGE_BASE.xml" # Or .md depending on format
+            # try:
+            #     kb_file_path.write_text(kb_content, encoding="utf-8")
+            #     self.console.print(f"[green]KB saved to {kb_file_path}[/green]")
+            # except Exception as e:
+            #     self.console.print(f"[red]Error saving KB: {e}[/red]")
+            #     logging.error(f"Failed to save KB to {kb_file_path}: {e}", exc_info=True)
         else:
-            self.console.print("[yellow]Placeholder: KB Not Saved[/yellow]")
+            self.console.print("[yellow]Knowledge Base not saved.[/yellow]") # Adjusted message
 
         # After KB save/skip, the workflow is complete. Ask to start over or exit.
         if prompt_for_continue("Would you like to perform another conversion?", console=self.console):
@@ -773,3 +902,4 @@ class MenuSystem:
                 return True
             else:
                 self.console.print("[bold yellow]Invalid option. Please try again.[/bold yellow]")
+
