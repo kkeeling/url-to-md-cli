@@ -38,6 +38,7 @@ from kb_for_prompt.templates.prompts import (
     prompt_for_toc_generation, # Import new prompts
     prompt_for_kb_generation,
     prompt_save_confirmation,
+    prompt_retry_generation, # Import for TOC retry functionality
     MenuOption
 )
 from kb_for_prompt.templates.errors import (
@@ -650,36 +651,105 @@ class MenuSystem:
             self._transition_to(MenuState.KB_PROMPT)
 
 
+    def _save_content_to_file(self, content: str, target_path: Path) -> bool:
+        """
+        Save content to a file.
+        
+        This is a placeholder method that will be fully implemented in Task 8/9.
+        
+        Args:
+            content: The content to save
+            target_path: Path where the content should be saved
+            
+        Returns:
+            bool: True if save was successful, False otherwise
+        """
+        logging.warning(f"_save_content_to_file is using placeholder implementation to save to {target_path}")
+        
+        try:
+            # Ensure the parent directory exists
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Write the content to the file
+            target_path.write_text(content, encoding="utf-8")
+            return True
+        except Exception as e:
+            logging.error(f"Failed to save content to {target_path}: {e}", exc_info=True)
+            self.console.print(f"[bold red]Error saving file:[/bold red] {e}")
+            return False
+            
     def _handle_toc_confirm_save(self) -> None:
-        """Handle confirming and saving the generated TOC."""
+        """
+        Handle confirming and saving the generated TOC.
+        
+        Retrieves generated TOC content and output directory from user_data,
+        creates a preview, asks for confirmation, and either saves the file
+        or asks if the user wants to retry generation. Then transitions to
+        the appropriate next state.
+        """
         display_section_header("Save Table of Contents", console=self.console)
-        # self.console.print("(Placeholder: TOC Confirm Save)") # Remove placeholder print
-        # Placeholder logic: Show preview and ask to save
-        toc_content = self.user_data.get("generated_toc_content") # No default needed, handled in _handle_toc_processing
 
-        # Ensure we only proceed if toc_content is valid
+        # Retrieve the content from user_data
+        toc_content = self.user_data.get("generated_toc_content")
+        output_dir_str = self.user_data.get("output_dir")
+        
+        # Handle missing content case
         if toc_content is None:
-             self.console.print("[yellow]No Table of Contents content available to save.[/yellow]")
-             self._transition_to(MenuState.KB_PROMPT) # Skip to KB prompt
-             return
-
-        if prompt_save_confirmation(toc_content, console=self.console):
-            self.console.print("[green]Placeholder: TOC Saved[/green]")
-            # In real implementation, save the TOC file here
-            # Example:
-            # output_dir = Path(self.user_data.get("output_dir", "."))
-            # toc_file_path = output_dir / "TABLE_OF_CONTENTS.md"
-            # try:
-            #     toc_file_path.write_text(toc_content, encoding="utf-8")
-            #     self.console.print(f"[green]TOC saved to {toc_file_path}[/green]")
-            # except Exception as e:
-            #     self.console.print(f"[red]Error saving TOC: {e}[/red]")
-            #     logging.error(f"Failed to save TOC to {toc_file_path}: {e}", exc_info=True)
+            self.console.print("[bold red]Error:[/bold red] TOC content not found in user data. Cannot proceed with saving.")
+            self._transition_to(MenuState.KB_PROMPT)  # Skip to KB prompt
+            return
+            
+        # Handle missing output_dir case
+        if not output_dir_str:
+            self.console.print("[bold red]Error:[/bold red] Output directory not found in user data. Cannot determine save location.")
+            self._transition_to(MenuState.KB_PROMPT)  # Skip to KB prompt
+            return
+            
+        # Generate preview (first 50 lines)
+        lines = toc_content.splitlines()[:50]
+        preview = "\n".join(lines)
+        
+        # Add indicator if content was truncated for preview
+        if len(toc_content.splitlines()) > 50:
+            preview += "\n[italic](... preview truncated ...)[/italic]"
+        
+        # Ask user whether to save
+        if prompt_save_confirmation(preview, console=self.console):
+            # User confirmed save - determine target path
+            try:
+                output_dir = Path(output_dir_str)
+                target_path = output_dir / "toc.md"
+                
+                self.console.print(f"Attempting to save TOC to: {target_path}")
+                
+                # Call the save method
+                save_success = self._save_content_to_file(toc_content, target_path)
+                
+                # Handle save result
+                if save_success:
+                    self.console.print(f"[green]TOC saved successfully.[/green]")
+                else:
+                    self.console.print("[yellow]TOC saving failed. Check error messages above.[/yellow]")
+                    
+                # Transition to KB prompt regardless of save outcome
+                self._transition_to(MenuState.KB_PROMPT)
+                
+            except Exception as e:
+                logging.error(f"Error preparing to save TOC: {e}", exc_info=True)
+                self.console.print(f"[bold red]Error preparing to save TOC:[/bold red] {e}")
+                self._transition_to(MenuState.KB_PROMPT)
         else:
-            self.console.print("[yellow]Table of Contents not saved.[/yellow]") # Adjusted message
-
-        # Always transition to KB prompt after handling TOC save/skip
-        self._transition_to(MenuState.KB_PROMPT)
+            # User declined to save - ask about retrying
+            self.console.print("Save cancelled by user.")
+            
+            if prompt_retry_generation("TOC generation", console=self.console):
+                # User wants to retry
+                self.console.print("Retrying TOC generation...")
+                self._transition_to(MenuState.TOC_PROCESSING)
+            else:
+                # User doesn't want to retry
+                self.console.print("Skipping TOC generation retry.")
+                self._transition_to(MenuState.KB_PROMPT)
 
     def _handle_kb_prompt(self) -> None:
         """Handle prompting the user for KB generation."""

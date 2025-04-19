@@ -528,30 +528,168 @@ class TestMenuSystem:
 
 
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
-    @patch('kb_for_prompt.organisms.menu_system.prompt_save_confirmation')
-    # Removed mock_llm_generator_class from signature
-    def test_handle_toc_confirm_save_yes(self, mock_prompt_save, mock_display_section_header):
-        """Test TOC confirm save handler when user says yes."""
-        mock_prompt_save.return_value = True
-        self.menu_system.user_data["generated_toc_content"] = "Test TOC"
+    def test_handle_toc_confirm_save_content_none(self, mock_display_section_header):
+        """Test TOC confirm save handler when content is None."""
+        # Setup
+        self.menu_system.user_data = {
+            "output_dir": "/test/output"
+        }  # No generated_toc_content
         self.menu_system.current_state = MenuState.TOC_CONFIRM_SAVE
+        
+        # Run
         self.menu_system._handle_toc_confirm_save()
+        
+        # Verify
+        self.mock_console.print.assert_any_call("[bold red]Error:[/bold red] TOC content not found in user data. Cannot proceed with saving.")
         assert self.menu_system.current_state == MenuState.KB_PROMPT
-        mock_prompt_save.assert_called_once_with("Test TOC", console=self.mock_console)
-        self.mock_console.print.assert_any_call("[green]Placeholder: TOC Saved[/green]")
-
+    
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    def test_handle_toc_confirm_save_output_dir_none(self, mock_display_section_header):
+        """Test TOC confirm save handler when output directory is None."""
+        # Setup
+        self.menu_system.user_data = {
+            "generated_toc_content": "Test TOC"
+        }  # No output_dir
+        self.menu_system.current_state = MenuState.TOC_CONFIRM_SAVE
+        
+        # Run
+        self.menu_system._handle_toc_confirm_save()
+        
+        # Verify
+        self.mock_console.print.assert_any_call("[bold red]Error:[/bold red] Output directory not found in user data. Cannot determine save location.")
+        assert self.menu_system.current_state == MenuState.KB_PROMPT
+    
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('kb_for_prompt.organisms.menu_system.prompt_save_confirmation')
-    # Removed mock_llm_generator_class from signature
-    def test_handle_toc_confirm_save_no(self, mock_prompt_save, mock_display_section_header):
-        """Test TOC confirm save handler when user says no."""
-        mock_prompt_save.return_value = False
-        self.menu_system.user_data["generated_toc_content"] = "Test TOC"
+    def test_handle_toc_confirm_save_yes_success(self, mock_prompt_save, mock_display_section_header):
+        """Test TOC confirm save handler when user says yes and save succeeds."""
+        # Setup
+        mock_prompt_save.return_value = True
+        test_content = "Test TOC"
+        test_output_dir = "/test/output"
+        self.menu_system.user_data = {
+            "generated_toc_content": test_content,
+            "output_dir": test_output_dir
+        }
         self.menu_system.current_state = MenuState.TOC_CONFIRM_SAVE
+        
+        # Mock _save_content_to_file method
+        self.menu_system._save_content_to_file = MagicMock(return_value=True)
+        
+        # Run
         self.menu_system._handle_toc_confirm_save()
+        
+        # Verify
+        mock_prompt_save.assert_called_once_with(test_content, console=self.mock_console)
+        expected_path = Path(test_output_dir) / "toc.md"
+        self.menu_system._save_content_to_file.assert_called_once_with(test_content, expected_path)
+        self.mock_console.print.assert_any_call(f"Attempting to save TOC to: {expected_path}")
+        self.mock_console.print.assert_any_call("[green]TOC saved successfully.[/green]")
         assert self.menu_system.current_state == MenuState.KB_PROMPT
-        mock_prompt_save.assert_called_once_with("Test TOC", console=self.mock_console)
-        self.mock_console.print.assert_any_call("[yellow]Table of Contents not saved.[/yellow]") # Adjusted message check
+    
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_save_confirmation')
+    def test_handle_toc_confirm_save_yes_failure(self, mock_prompt_save, mock_display_section_header):
+        """Test TOC confirm save handler when user says yes but save fails."""
+        # Setup
+        mock_prompt_save.return_value = True
+        test_content = "Test TOC"
+        test_output_dir = "/test/output"
+        self.menu_system.user_data = {
+            "generated_toc_content": test_content,
+            "output_dir": test_output_dir
+        }
+        self.menu_system.current_state = MenuState.TOC_CONFIRM_SAVE
+        
+        # Mock _save_content_to_file method to return False (save failure)
+        self.menu_system._save_content_to_file = MagicMock(return_value=False)
+        
+        # Run
+        self.menu_system._handle_toc_confirm_save()
+        
+        # Verify
+        mock_prompt_save.assert_called_once_with(test_content, console=self.mock_console)
+        expected_path = Path(test_output_dir) / "toc.md"
+        self.menu_system._save_content_to_file.assert_called_once_with(test_content, expected_path)
+        self.mock_console.print.assert_any_call("[yellow]TOC saving failed. Check error messages above.[/yellow]")
+        assert self.menu_system.current_state == MenuState.KB_PROMPT
+    
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_save_confirmation')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_retry_generation')
+    def test_handle_toc_confirm_save_no_retry(self, mock_prompt_retry, mock_prompt_save, mock_display_section_header):
+        """Test TOC confirm save handler when user says no and wants to retry."""
+        # Setup
+        mock_prompt_save.return_value = False
+        mock_prompt_retry.return_value = True
+        test_content = "Test TOC"
+        test_output_dir = "/test/output"
+        self.menu_system.user_data = {
+            "generated_toc_content": test_content,
+            "output_dir": test_output_dir
+        }
+        self.menu_system.current_state = MenuState.TOC_CONFIRM_SAVE
+        
+        # Run
+        self.menu_system._handle_toc_confirm_save()
+        
+        # Verify
+        mock_prompt_save.assert_called_once_with(test_content, console=self.mock_console)
+        mock_prompt_retry.assert_called_once_with("TOC generation", console=self.mock_console)
+        self.mock_console.print.assert_any_call("Save cancelled by user.")
+        self.mock_console.print.assert_any_call("Retrying TOC generation...")
+        assert self.menu_system.current_state == MenuState.TOC_PROCESSING
+    
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_save_confirmation')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_retry_generation')
+    def test_handle_toc_confirm_save_no_no_retry(self, mock_prompt_retry, mock_prompt_save, mock_display_section_header):
+        """Test TOC confirm save handler when user says no and doesn't want to retry."""
+        # Setup
+        mock_prompt_save.return_value = False
+        mock_prompt_retry.return_value = False
+        test_content = "Test TOC"
+        test_output_dir = "/test/output"
+        self.menu_system.user_data = {
+            "generated_toc_content": test_content,
+            "output_dir": test_output_dir
+        }
+        self.menu_system.current_state = MenuState.TOC_CONFIRM_SAVE
+        
+        # Run
+        self.menu_system._handle_toc_confirm_save()
+        
+        # Verify
+        mock_prompt_save.assert_called_once_with(test_content, console=self.mock_console)
+        mock_prompt_retry.assert_called_once_with("TOC generation", console=self.mock_console)
+        self.mock_console.print.assert_any_call("Save cancelled by user.")
+        self.mock_console.print.assert_any_call("Skipping TOC generation retry.")
+        assert self.menu_system.current_state == MenuState.KB_PROMPT
+    
+    @patch('kb_for_prompt.organisms.menu_system.display_section_header')
+    @patch('kb_for_prompt.organisms.menu_system.prompt_save_confirmation')
+    def test_handle_toc_confirm_save_preview_truncation(self, mock_prompt_save, mock_display_section_header):
+        """Test that preview is correctly truncated for long TOC content."""
+        # Setup
+        mock_prompt_save.return_value = True
+        
+        # Generate content with more than 50 lines
+        long_content = "\n".join([f"Line {i}" for i in range(1, 100)])
+        expected_preview = "\n".join([f"Line {i}" for i in range(1, 51)])
+        expected_preview += "\n[italic](... preview truncated ...)[/italic]"
+        
+        self.menu_system.user_data = {
+            "generated_toc_content": long_content,
+            "output_dir": "/test/output"
+        }
+        self.menu_system.current_state = MenuState.TOC_CONFIRM_SAVE
+        self.menu_system._save_content_to_file = MagicMock(return_value=True)
+        
+        # Run
+        self.menu_system._handle_toc_confirm_save()
+        
+        # Verify preview was truncated
+        mock_prompt_save.assert_called_once_with(expected_preview, console=self.mock_console)
 
     @patch('kb_for_prompt.organisms.menu_system.display_section_header')
     @patch('kb_for_prompt.organisms.menu_system.prompt_for_kb_generation')
