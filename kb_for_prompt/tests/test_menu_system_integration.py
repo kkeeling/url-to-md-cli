@@ -1,5 +1,5 @@
 # /// script
-# requires-python = "==3.12"
+# requires-python = ">=3.11"
 # dependencies = [
 #     "click",
 #     "rich",
@@ -70,11 +70,11 @@ class TestMenuSystemIntegration:
         mock_single_item_converter_class.assert_called_once_with(console=self.console)
         mock_converter.run.assert_called_once_with("https://example.com", "/output/dir")
         
-        # Verify results are stored in user_data
-        assert self.menu_system.user_data["conversion_success"] is True
-        assert self.menu_system.user_data["conversion_results"]["input_path"] == "https://example.com"
-        assert self.menu_system.user_data["conversion_results"]["input_type"] == "url"
-        assert self.menu_system.user_data["conversion_results"]["output_path"] == "/output/dir/example_com.md"
+        # Verify results are stored in user_data using the correct keys
+        assert self.menu_system.user_data["single_conversion_success"] is True
+        assert self.menu_system.user_data["single_conversion_results"]["input_path"] == "https://example.com"
+        assert self.menu_system.user_data["single_conversion_results"]["input_type"] == "url"
+        assert self.menu_system.user_data["single_conversion_results"]["output_path"] == "/output/dir/example_com.md"
         
         # Verify transition to RESULTS state
         assert self.menu_system.current_state == MenuState.RESULTS
@@ -117,11 +117,11 @@ class TestMenuSystemIntegration:
         mock_single_item_converter_class.assert_called_once_with(console=self.console)
         mock_converter.run.assert_called_once_with("/path/to/document.pdf", "/output/dir")
         
-        # Verify results are stored in user_data
-        assert self.menu_system.user_data["conversion_success"] is False
-        assert self.menu_system.user_data["conversion_results"]["input_path"] == "/path/to/document.pdf"
-        assert self.menu_system.user_data["conversion_results"]["input_type"] == "pdf"
-        assert self.menu_system.user_data["conversion_results"]["error"]["message"] == "Failed to convert PDF document"
+        # Verify results are stored in user_data using the correct keys
+        assert self.menu_system.user_data["single_conversion_success"] is False
+        assert self.menu_system.user_data["single_conversion_results"]["input_path"] == "/path/to/document.pdf"
+        assert self.menu_system.user_data["single_conversion_results"]["input_type"] == "pdf"
+        assert self.menu_system.user_data["single_conversion_results"]["error"]["message"] == "Failed to convert PDF document"
         
         # Verify transition to RESULTS state
         assert self.menu_system.current_state == MenuState.RESULTS

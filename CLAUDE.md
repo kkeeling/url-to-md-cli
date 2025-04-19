@@ -33,7 +33,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Since we are using 'uv', we do not want to install dependencies globally. Run the tests with `uv run` and if you still get errors about dependencies, add the following header to the test files with the appropriate dependencies:
 ```
 # /// script
-# requires-python = "==3.12"
+# requires-python = ">=3.11"
 # dependencies = [
 #     "click",
 #     "rich",

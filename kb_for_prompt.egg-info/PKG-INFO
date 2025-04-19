@@ -6,7 +6,7 @@ Author-email: Codeshack X <codeshack@example.com>
 Classifier: Programming Language :: Python :: 3
 Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
-Requires-Python: ==3.12
+Requires-Python: >=3.11
 Description-Content-Type: text/markdown
 Requires-Dist: click
 Requires-Dist: rich
@@ -43,7 +43,13 @@ A CLI tool that converts online and local documents (URLs, Word, and PDF files) 
 ### Requirements
 
 - Python >= 3.12
+- Rust and Cargo (required for building the tokenizers library)
 - uv (optional but recommended)
+
+> **Note**: This project depends on libraries like `tokenizers` which contain native Rust components. You need to have Rust and Cargo installed on your system. To install Rust, visit [rustup.rs](https://rustup.rs) or run:
+> ```bash
+> curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+> ```
 
 ### Using uv (Recommended)
 

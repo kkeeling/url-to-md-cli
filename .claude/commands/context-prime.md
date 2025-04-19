@@ -6,7 +6,7 @@ Perform these instructions to understand the context of this project.
 
 Perform the following steps in order:
 
-1. READ the project specification using `cat specs/tasks/mvp/spec.md`
+1. READ the project specification using `cat specs/tasks/kb-from-urls/spec.md`
 
 2. READ the table of contents for the documentation using `cat specs/docs/toc.md`:
 
