@@ -21,9 +21,10 @@ Follow these instructions to fully implement a feature.
 4. Use the Aider AI Code Tool to implement the task you found in step 1 to completion
 5. Use the Aider AI Code Tool to write unit tests for the task
 6. Run your unit tests to ensure they pass. If they do not pass, fix the failures.
-7. Run all project unit tests to ensure you have not broken any previous tests. If you have fix the failures.
-8. Run the cli command `uv run kb_for_prompt/pages/kb_for_prompt.py` to run the application. If running the application fails or contains errors, fix the errors. Do not move on to the next instruction until the application runs without errors.
-8. Mark the task as complete in the todo list
+7. Run all project unit tests to ensure you have not broken any previous tests. If you have fix the failures. Even if test failures are not related to the task you are completing, fix them.
+8. Run the cli command `uv run kb_for_prompt/pages/kb_for_prompt.py` to run the application. If running the application fails or contains errors, fix the errors. Do not move on to the next instruction until the application runs without errors. Even if the errors are not related to the task you are completing, fix them.
+9. Mark the task as complete in the todo list
+10. Perform a git commit with a message that summarizes the changes you made for the task.
 
 ## Important note about unit tests
 
