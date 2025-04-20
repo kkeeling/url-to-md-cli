@@ -240,7 +240,16 @@ def test_generate_kb_success(mock_scan, mock_load_template, generator, mock_llm_
     call_args, call_kwargs = mock_llm_client.invoke.call_args
     prompt_arg = call_args[0]
     assert isinstance(prompt_arg, str)
-    expected_final_prompt = sample_data["kb_template_content"].replace("{{documents}}", sample_data["xml_data"])
+    
+    # Create XML without path attributes for comparison
+    # We're doing this because our new implementation removes path attributes
+    root = ET.fromstring(sample_data["xml_data"])
+    for doc in root.findall("document"):
+        if 'path' in doc.attrib:
+            del doc.attrib['path']
+    xml_without_paths = ET.tostring(root, encoding="unicode", xml_declaration=False, short_empty_elements=False)
+    
+    expected_final_prompt = sample_data["kb_template_content"].replace("{{documents}}", xml_without_paths)
     assert prompt_arg == expected_final_prompt
     
     # Check model argument passed to invoke
