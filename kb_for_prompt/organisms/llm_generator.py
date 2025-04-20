@@ -98,6 +98,7 @@ class LlmGenerator:
                     try:
                         content = item.read_text(encoding="utf-8")
                         doc_element = ET.SubElement(root, "document")
+                        # Add path attribute - this might be removed later depending on use case
                         doc_element.set("path", str(relative_path).replace("\\", "/")) # Ensure consistent path separators
                         # Set text content, ensuring empty strings are preserved
                         doc_element.text = content if content else ""
@@ -168,7 +169,7 @@ class LlmGenerator:
             return None
 
         try:
-            # Get the XML representation of markdown files
+            # Get the XML representation of markdown files (includes paths by default)
             xml_data = self.scan_and_build_xml(directory_path)
 
             # Parse the XML and check if any document elements exist
@@ -185,6 +186,7 @@ class LlmGenerator:
                 return None
 
             # Construct the prompt with the XML data
+            # Note: This TOC prompt currently doesn't explicitly use paths, but the XML contains them.
             prompt_template = """
 You are a documentation indexing assistant. Create a comprehensive table of contents in markdown format based on the content of the provided documents.
 
@@ -227,10 +229,11 @@ Generate a clear, hierarchical, and well-structured table of contents that would
         This method:
         1. Loads the KB extraction prompt template.
         2. Scans the provided directory to build an XML representation of the markdown files.
-        3. If no documents are found or XML is invalid, returns None.
-        4. Injects the XML data into the prompt template.
-        5. Calls the LLM with the specified model alias.
-        6. Returns the generated markdown KB or None if an error occurs.
+        3. Removes the 'path' attribute from the XML document tags.
+        4. If no documents are found or XML is invalid, returns None.
+        5. Injects the path-less XML data into the prompt template.
+        6. Calls the LLM with the specified model alias.
+        7. Returns the generated markdown KB or None if an error occurs.
 
         Args:
             directory_path: The path to the directory containing markdown files.
@@ -250,27 +253,44 @@ Generate a clear, hierarchical, and well-structured table of contents that would
                 # Error already logged in _load_prompt_template
                 return None
 
-            # 2. Scan the directory and build XML
-            xml_data = self.scan_and_build_xml(directory_path)
+            # 2. Scan the directory and build XML (includes paths initially)
+            xml_data_with_paths = self.scan_and_build_xml(directory_path)
 
-            # 3. Check if XML contains documents
+            # 3. Check if XML contains documents and remove paths
+            xml_data_without_paths = None
             try:
-                if not xml_data: # Handle empty string case
+                if not xml_data_with_paths: # Handle empty string case
                     logging.info("Scan returned empty XML data, skipping KB generation.")
                     return None
-                root = ET.fromstring(xml_data)
-                if len(root.findall("document")) == 0:
+
+                root = ET.fromstring(xml_data_with_paths)
+                documents = root.findall("document")
+
+                if len(documents) == 0:
                     logging.info("No markdown documents found in the XML, skipping KB generation.")
                     return None
+
+                # Remove the 'path' attribute from each document element
+                for doc in documents:
+                    if 'path' in doc.attrib:
+                        del doc.attrib['path']
+
+                # Convert the modified tree back to a string
+                xml_data_without_paths = ET.tostring(root, encoding="unicode", xml_declaration=False, short_empty_elements=False)
+
             except ET.ParseError as e:
                 logging.error(f"Malformed XML data from scan, cannot generate KB: {e}")
                 return None
+            except Exception as e:
+                 logging.error(f"Error processing XML data for KB generation: {e}", exc_info=True)
+                 return None
 
-            # 4. Inject XML data into the prompt
+
+            # 4. Inject path-less XML data into the prompt
             if "{{documents}}" not in prompt_template:
                  logging.error(f"Placeholder '{{documents}}' not found in template: {template_path}")
                  return None
-            final_prompt = prompt_template.replace("{{documents}}", xml_data)
+            final_prompt = prompt_template.replace("{{documents}}", xml_data_without_paths)
 
             # 5. Call the LLM
             model_alias = "gemini/gemini-2.5-pro-preview-03-25"

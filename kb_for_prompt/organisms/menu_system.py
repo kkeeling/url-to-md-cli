@@ -806,7 +806,7 @@ class MenuSystem:
         # Display the section header
         display_section_header("Knowledge Base Generation", console=self.console)
         # Print explanatory text
-        self.console.print("\nOptionally, generate a Knowledge Base (KB) in XML format")
+        self.console.print("\nOptionally, generate a Knowledge Base (KB) in Markdown format") # Updated format
         self.console.print("from the Markdown files using an LLM.")
         self.console.print("This can be useful for further processing or RAG systems.")
 
@@ -920,8 +920,8 @@ class MenuSystem:
             # User confirmed save - determine target path
             try:
                 output_dir = Path(output_dir_str)
-                # Assuming KB is saved as XML based on prompt description
-                target_path = output_dir / "knowledge_base.xml"
+                # Save KB as Markdown
+                target_path = output_dir / "knowledge_base.md" # CHANGED EXTENSION
 
                 self.console.print(f"Preparing to save KB to: {target_path}")
 

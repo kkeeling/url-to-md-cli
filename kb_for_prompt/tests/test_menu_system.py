@@ -494,7 +494,7 @@ class TestMenuSystemKbConfirmSave(unittest.TestCase):
         mock_prompt_save.return_value = True
         mock_save_method.return_value = True # Simulate successful save
         expected_preview = "\n".join(self.kb_content.splitlines()[:50]) + "\n[italic](... preview truncated ...)[/italic]"
-        expected_target_path = self.output_dir / "knowledge_base.xml"
+        expected_target_path = self.output_dir / "knowledge_base.md" # CHANGED EXTENSION
 
         self.menu._handle_kb_confirm_save()
 
@@ -515,7 +515,7 @@ class TestMenuSystemKbConfirmSave(unittest.TestCase):
         """Test handler when user confirms save but save fails."""
         mock_prompt_save.return_value = True
         mock_save_method.return_value = False # Simulate save failure
-        expected_target_path = self.output_dir / "knowledge_base.xml"
+        expected_target_path = self.output_dir / "knowledge_base.md" # CHANGED EXTENSION
 
         self.menu._handle_kb_confirm_save()
 
