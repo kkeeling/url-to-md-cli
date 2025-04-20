@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Github Repo
+- Repo name: `url-to-md-cli`
+- Repo owner: `kkeeling`
+
 ## Commands
 - Run script: `uv run kb_for_prompt/pages/kb_for_prompt.py`
 - Run all tests: `uv run pytest`
