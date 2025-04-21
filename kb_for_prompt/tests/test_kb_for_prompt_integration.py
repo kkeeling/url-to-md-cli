@@ -42,22 +42,9 @@ class TestCliCondensationIntegration:
     Test suite for the CLI-driven condensation feature integration.
     """
 
-    # Define dummy paths relative to a potential test directory
-    # These will likely be managed by pytest fixtures (e.g., tmp_path) in actual tests
-    # dummy_input_file = Path("dummy_input.md") # Replaced by tmp_path usage
-    # dummy_output_dir = Path("output") # Replaced by tmp_path usage
-    # dummy_condensed_file = Path("output/dummy_input_condensed.md") # Replaced by tmp_path usage
-
     def setup_method(self):
         """Set up test fixtures for each test method."""
         self.runner = CliRunner()
-
-    # Test methods will be added here later to cover different scenarios:
-    # - Successful condensation after file conversion (ADDED BELOW)
-    # - Successful condensation after URL conversion
-    # - User declining condensation
-    # - Condensation failure handling
-    # - Interaction with mocks for conversion and LLM calls
 
     @patch('kb_for_prompt.pages.kb_for_prompt.display_spinner', return_value=MagicMock(__enter__=MagicMock(return_value=None), __exit__=MagicMock(return_value=False)))
     @patch('kb_for_prompt.pages.kb_for_prompt.condense_knowledge_base')
@@ -68,79 +55,152 @@ class TestCliCondensationIntegration:
         Test successful file conversion followed by successful condensation via CLI.
         """
         # --- Arrange ---
-        # Define paths using tmp_path fixture
         input_file = tmp_path / "input.txt"
         output_dir = tmp_path / "out"
-        # Note: output_dir doesn't need to exist beforehand, handle_direct_conversion creates it.
-        # input_file needs to exist for Path.resolve() if not mocked deeply, but CLI passes string.
-        # Let's assume the CLI passes the string path correctly.
-
-        # Expected path for the initially converted file
         converted_file_path = output_dir / "input.md"
-        # Expected path for the final condensed file
-        condensed_file_path = output_dir / "knowledge_base_condensed.md"
+        condensed_file_path = output_dir / "knowledge_base_condensed.md" # Example name
 
-        # Configure SingleItemConverter mock
         mock_converter_instance = mock_converter_cls.return_value
         mock_converter_instance.run.return_value = (True, {'output_path': str(converted_file_path)})
-
-        # Configure condense_knowledge_base mock
         mock_condense.return_value = condensed_file_path
 
         # --- Act ---
-        # Invoke the CLI with file and output directory arguments
         result = self.runner.invoke(main, [
             '--file', str(input_file),
             '--output-dir', str(output_dir)
-        ], catch_exceptions=False) # Set catch_exceptions=False for easier debugging
+        ], catch_exceptions=False)
 
         # --- Assert ---
-        # Check exit code
         assert result.exit_code == 0, f"CLI exited with code {result.exit_code}. Output:\n{result.output}"
-
-        # Check SingleItemConverter instantiation and call
         mock_converter_cls.assert_called_once()
-        # handle_direct_conversion resolves the output path before passing it
         expected_output_path_resolved = output_dir.resolve()
         mock_converter_instance.run.assert_called_once_with(str(input_file), expected_output_path_resolved)
-
-        # Check Confirm.ask call
         mock_confirm_ask.assert_called_once_with(
             "\n[bold yellow]?[/bold yellow] Do you want to generate a condensed version using an LLM?",
             default=False
         )
-
-        # Check display_spinner call (basic check)
         mock_spinner.assert_called_once()
-        # You could add more specific checks on the spinner text if needed
-
-        # Check condense_knowledge_base call
         mock_condense.assert_called_once_with(converted_file_path)
-
-        # Check output messages
         assert "✓ Conversion successful." in result.output
         assert f"Output file: {converted_file_path}" in result.output
         assert "✓ Condensation successful." in result.output
         assert f"Condensed file: {condensed_file_path}" in result.output
 
-    # Example placeholder for a test (to be implemented)
-    # @patch('kb_for_prompt.pages.kb_for_prompt.SingleItemConverter')
-    # @patch('kb_for_prompt.pages.kb_for_prompt.condense_knowledge_base')
-    # @patch('rich.prompt.Confirm.ask', return_value=True) # Mock user confirming 'yes'
-    # def test_cli_file_conversion_with_condensation_success(self, mock_confirm, mock_condense, mock_converter, tmp_path):
-    #     """
-    #     Test successful file conversion followed by successful condensation via CLI.
-    #     """
-    #     # Setup mocks and dummy files within tmp_path
-    #     # ...
-    #
-    #     # Invoke the CLI
-    #     result = self.runner.invoke(main, [
-    #         '--file', str(self.dummy_input_file),
-    #         '--output-dir', str(self.dummy_output_dir)
-    #     ])
-    #
-    #     # Assertions
-    #     assert result.exit_code == 0
-    #     # ... check mocks were called, output messages, file existence etc.
-    #     pass # Replace with actual test implementation
+    @patch('kb_for_prompt.pages.kb_for_prompt.display_spinner', return_value=MagicMock(__enter__=MagicMock(return_value=None), __exit__=MagicMock(return_value=False)))
+    @patch('kb_for_prompt.pages.kb_for_prompt.condense_knowledge_base', return_value=None) # Mock condensation returning None
+    @patch('kb_for_prompt.pages.kb_for_prompt.Confirm.ask', return_value=True)
+    @patch('kb_for_prompt.pages.kb_for_prompt.SingleItemConverter')
+    def test_integration_condensation_returns_none(self, mock_converter_cls, mock_confirm_ask, mock_condense, mock_spinner, tmp_path):
+        """
+        Test successful conversion, but condensation returns None (failure).
+        """
+        # --- Arrange ---
+        input_file = tmp_path / "input.txt"
+        output_dir = tmp_path / "out"
+        converted_file_path = output_dir / "input.md"
+
+        mock_converter_instance = mock_converter_cls.return_value
+        mock_converter_instance.run.return_value = (True, {'output_path': str(converted_file_path)})
+        # mock_condense is already configured via decorator to return None
+
+        # --- Act ---
+        result = self.runner.invoke(main, [
+            '--file', str(input_file),
+            '--output-dir', str(output_dir)
+        ], catch_exceptions=False)
+
+        # --- Assert ---
+        # Exit code should still be 0 because the *initial* conversion succeeded
+        assert result.exit_code == 0, f"CLI exited with code {result.exit_code}. Output:\n{result.output}"
+        mock_converter_cls.assert_called_once()
+        expected_output_path_resolved = output_dir.resolve()
+        mock_converter_instance.run.assert_called_once_with(str(input_file), expected_output_path_resolved)
+        mock_confirm_ask.assert_called_once()
+        mock_spinner.assert_called_once() # Spinner is still called
+        mock_condense.assert_called_once_with(converted_file_path) # Condensation is attempted
+        assert "✓ Conversion successful." in result.output
+        assert f"Output file: {converted_file_path}" in result.output
+        assert "✗ Condensation failed." in result.output # Check for failure message
+        assert "Condensed file:" not in result.output # Ensure success message isn't shown
+
+    @patch('kb_for_prompt.pages.kb_for_prompt.display_spinner', return_value=MagicMock(__enter__=MagicMock(return_value=None), __exit__=MagicMock(return_value=False)))
+    @patch('kb_for_prompt.pages.kb_for_prompt.condense_knowledge_base') # Mock the function itself
+    @patch('kb_for_prompt.pages.kb_for_prompt.Confirm.ask', return_value=True)
+    @patch('kb_for_prompt.pages.kb_for_prompt.SingleItemConverter')
+    def test_integration_condensation_raises_exception(self, mock_converter_cls, mock_confirm_ask, mock_condense, mock_spinner, tmp_path):
+        """
+        Test successful conversion, but condensation raises an exception.
+        """
+        # --- Arrange ---
+        input_file = tmp_path / "input.txt"
+        output_dir = tmp_path / "out"
+        converted_file_path = output_dir / "input.md"
+        test_exception = Exception("LLM API Error")
+
+        mock_converter_instance = mock_converter_cls.return_value
+        mock_converter_instance.run.return_value = (True, {'output_path': str(converted_file_path)})
+        mock_condense.side_effect = test_exception # Configure mock to raise exception
+
+        # --- Act ---
+        result = self.runner.invoke(main, [
+            '--file', str(input_file),
+            '--output-dir', str(output_dir)
+        ], catch_exceptions=False) # Catching exceptions might hide the error we want to test handling for
+
+        # --- Assert ---
+        # Exit code should still be 0 because the *initial* conversion succeeded
+        assert result.exit_code == 0, f"CLI exited with code {result.exit_code}. Output:\n{result.output}"
+        mock_converter_cls.assert_called_once()
+        expected_output_path_resolved = output_dir.resolve()
+        mock_converter_instance.run.assert_called_once_with(str(input_file), expected_output_path_resolved)
+        mock_confirm_ask.assert_called_once()
+        mock_spinner.assert_called_once() # Spinner is still called
+        mock_condense.assert_called_once_with(converted_file_path) # Condensation is attempted
+        assert "✓ Conversion successful." in result.output
+        assert f"Output file: {converted_file_path}" in result.output
+        # Check that the specific exception message is logged (or a generic one if caught)
+        assert "An unexpected error occurred during condensation:" in result.output
+        assert str(test_exception) in result.output
+        assert "✗ Condensation failed." in result.output # Check for failure message
+
+    @patch('kb_for_prompt.pages.kb_for_prompt.display_spinner') # Mock spinner to ensure it's not called for condensation
+    @patch('kb_for_prompt.pages.kb_for_prompt.condense_knowledge_base')
+    @patch('kb_for_prompt.pages.kb_for_prompt.Confirm.ask')
+    @patch('kb_for_prompt.pages.kb_for_prompt.SingleItemConverter')
+    def test_integration_primary_conversion_fails(self, mock_converter_cls, mock_confirm_ask, mock_condense, mock_spinner, tmp_path):
+        """
+        Test the scenario where the initial file conversion fails.
+        """
+        # --- Arrange ---
+        input_file = tmp_path / "input.txt"
+        output_dir = tmp_path / "out"
+        error_details = {'type': 'ConversionError', 'message': 'Failed to process file'}
+
+        mock_converter_instance = mock_converter_cls.return_value
+        # Mock converter run to return failure
+        mock_converter_instance.run.return_value = (False, {'error': error_details})
+
+        # --- Act ---
+        result = self.runner.invoke(main, [
+            '--file', str(input_file),
+            '--output-dir', str(output_dir)
+        ], catch_exceptions=False)
+
+        # --- Assert ---
+        # Exit code should be non-zero because the primary conversion failed
+        assert result.exit_code == 1, f"CLI exited with code {result.exit_code}. Output:\n{result.output}"
+        mock_converter_cls.assert_called_once()
+        expected_output_path_resolved = output_dir.resolve()
+        mock_converter_instance.run.assert_called_once_with(str(input_file), expected_output_path_resolved)
+
+        # Ensure condensation steps were NOT taken
+        mock_confirm_ask.assert_not_called()
+        mock_spinner.assert_not_called() # Spinner for condensation should not be called
+        mock_condense.assert_not_called()
+
+        # Check for failure messages
+        assert "✗ Conversion failed." in result.output
+        assert f"Error Type: {error_details['type']}" in result.output
+        assert f"Error Message: {error_details['message']}" in result.output
+        assert "✓ Conversion successful." not in result.output
+        assert "Condensation" not in result.output # No condensation messages should appear
