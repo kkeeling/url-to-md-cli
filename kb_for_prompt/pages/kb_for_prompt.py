@@ -20,7 +20,7 @@ This script provides a CLI tool to convert online and local documents
 It supports both batch conversion (using a CSV file with a mix of URLs and
 file paths) and single item conversion modes via an interactive menu.
 It also includes optional LLM-based generation of Table of Contents (TOC)
-and Knowledge Base (KB) summaries.
+and Knowledge Base (KB) summaries, and KB condensation.
 
 Usage:
     # Install and run with uv
@@ -47,13 +47,16 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 import click
 from rich.console import Console
+from rich.prompt import Confirm # Import Confirm
 
 # Import necessary components from the package
 from kb_for_prompt.organisms.menu_system import MenuSystem
 from kb_for_prompt.organisms.single_item_converter import SingleItemConverter
 from kb_for_prompt.organisms.batch_converter import BatchConverter
 from kb_for_prompt.organisms.llm_client import LiteLlmClient # Import the new client
+from kb_for_prompt.organisms.condenser import condense_knowledge_base # Import condenser
 from kb_for_prompt.templates.banner import display_banner
+from kb_for_prompt.templates.progress import display_spinner # Import spinner
 
 # Define version directly to avoid import issues during direct execution
 __version__ = "0.1.0"
@@ -71,7 +74,7 @@ def main(url: Optional[str], file: Optional[str], batch: Optional[str],
 
     A CLI tool that converts online and local documents (URLs, Word, and PDF files)
     into Markdown files using the docling library. Includes optional LLM-based
-    Table of Contents and Knowledge Base generation.
+    Table of Contents and Knowledge Base generation, and KB condensation.
 
     Run without options to use the interactive menu interface.
     """
@@ -84,6 +87,7 @@ def main(url: Optional[str], file: Optional[str], batch: Optional[str],
         # If command-line options are provided, handle direct conversion
         if url or file or batch:
             # Note: Direct conversion currently bypasses LLM features (TOC/KB)
+            # except for the newly added condensation step for single items.
             # Future enhancement could add flags like --generate-toc, --generate-kb
             return handle_direct_conversion(url, file, batch, output_dir, console)
 
@@ -124,9 +128,9 @@ def handle_direct_conversion(
     """
     Handle direct conversion based on command-line options.
 
-    Note: This function currently only performs the file/URL conversion
-    and does not trigger the LLM-based TOC/KB generation steps available
-    in the interactive menu.
+    For single item conversions (URL/file), it offers an optional LLM-based
+    condensation step after successful conversion. Batch conversion does not
+    currently include LLM steps.
 
     Args:
         url: URL to convert (if provided).
@@ -136,7 +140,9 @@ def handle_direct_conversion(
         console: Console instance for output.
 
     Returns:
-        int: Exit code (0 for success, non-zero for error).
+        int: Exit code (0 for success of initial conversion, non-zero for error).
+             The success/failure of the optional condensation step does not
+             affect the return code.
     """
     # Determine the output path, defaulting to the current working directory if not specified
     output_path = Path(output_dir).resolve() if output_dir else Path.cwd()
@@ -176,6 +182,7 @@ def handle_direct_conversion(
     elif url or file:
         input_source = url if url else file
         source_type = "URL" if url else "File"
+        original_conversion_success = False # Track initial conversion status
 
         console.print(f"[bold]Converting {source_type} to Markdown:[/bold] {input_source}")
         console.print(f"Output directory: [cyan]{output_path}[/cyan]")
@@ -187,8 +194,44 @@ def handle_direct_conversion(
 
         # Print summary from results
         if success:
+            original_conversion_success = True # Mark initial conversion as successful
             console.print(f"[bold green]✓ Conversion successful.[/bold green]")
             console.print(f"  Output file: [cyan]{result.get('output_path', 'N/A')}[/cyan]")
+
+            # --- Condensation Step ---
+            original_kb_path_str = result.get('output_path')
+            if original_kb_path_str:
+                try:
+                    # Ask user if they want to condense
+                    if Confirm.ask("\n[bold yellow]?[/bold yellow] Do you want to generate a condensed version using an LLM?", default=False):
+                        original_kb_path = Path(original_kb_path_str)
+                        condensed_file_path: Optional[Path] = None
+
+                        spinner_text = f"Condensing knowledge base: {original_kb_path.name}"
+                        with display_spinner(text=spinner_text, console=console) as spinner:
+                            try:
+                                # Call the condensation function
+                                condensed_file_path = condense_knowledge_base(original_kb_path)
+                                # Update spinner text upon completion (handled by context manager on success/fail)
+                            except Exception as condense_e:
+                                # display_spinner handles logging the failure text
+                                console.print(f"[bold red]An unexpected error occurred during condensation:[/bold red] {str(condense_e)}")
+                                # No need to re-raise, spinner handles fail state
+
+                        # Check result and print messages
+                        if condensed_file_path:
+                            console.print(f"[bold green]✓ Condensation successful.[/bold green]")
+                            console.print(f"  Condensed file: [cyan]{condensed_file_path}[/cyan]")
+                        else:
+                            # condense_knowledge_base logs specific errors, so just indicate failure here
+                            console.print(f"[bold red]✗ Condensation failed.[/bold red] Check logs for details.")
+
+                except Exception as e:
+                    console.print(f"\n[bold red]An error occurred during the condensation prompt or process:[/bold red] {str(e)}")
+            else:
+                 console.print("[yellow]Skipping condensation step as output path was not found in conversion result.[/yellow]")
+            # --- End Condensation Step ---
+
         else:
             console.print(f"[bold red]✗ Conversion failed.[/bold red]")
             error_info = result.get('error', {})
@@ -196,7 +239,8 @@ def handle_direct_conversion(
                  console.print(f"  Error Type: {error_info.get('type', 'Unknown')}")
                  console.print(f"  Error Message: {error_info.get('message', 'No details provided')}")
 
-        return 0 if success else 1
+        # Return code based on the *original* conversion success
+        return 0 if original_conversion_success else 1
 
     # This case should not be reached if validation occurs correctly upstream,
     # but included for completeness.

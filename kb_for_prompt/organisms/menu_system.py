@@ -58,6 +58,8 @@ from kb_for_prompt.atoms.error_utils import (
 )
 # Import LlmGenerator
 from kb_for_prompt.organisms.llm_generator import LlmGenerator
+# Import Condenser function
+from kb_for_prompt.organisms.condenser import condense_knowledge_base
 
 
 class MenuState(Enum):
@@ -73,13 +75,17 @@ class MenuState(Enum):
     PROCESSING = auto()
     BATCH_PROCESSING = auto()
     RESULTS = auto()
-    # New states for TOC and KB generation
+    # TOC states
     TOC_PROMPT = auto()
     TOC_PROCESSING = auto()
     TOC_CONFIRM_SAVE = auto()
+    # KB states
     KB_PROMPT = auto()
     KB_PROCESSING = auto()
     KB_CONFIRM_SAVE = auto()
+    # KB Condense states
+    KB_CONDENSE_PROMPT = auto()
+    KB_CONDENSE_PROCESSING = auto()
     EXIT = auto()
 
 
@@ -188,19 +194,25 @@ class MenuSystem:
             self._handle_batch_processing()
         elif self.current_state == MenuState.RESULTS:
             self._handle_results()
-        # Add branches for new states
+        # TOC states
         elif self.current_state == MenuState.TOC_PROMPT:
             self._handle_toc_prompt()
         elif self.current_state == MenuState.TOC_PROCESSING:
-            self._handle_toc_processing() # Call the implemented handler
+            self._handle_toc_processing()
         elif self.current_state == MenuState.TOC_CONFIRM_SAVE:
             self._handle_toc_confirm_save()
+        # KB states
         elif self.current_state == MenuState.KB_PROMPT:
             self._handle_kb_prompt()
         elif self.current_state == MenuState.KB_PROCESSING:
-            self._handle_kb_processing() # Call the implemented handler
+            self._handle_kb_processing()
         elif self.current_state == MenuState.KB_CONFIRM_SAVE:
-            self._handle_kb_confirm_save() # Call the implemented handler
+            self._handle_kb_confirm_save()
+        # KB Condense states
+        elif self.current_state == MenuState.KB_CONDENSE_PROMPT:
+            self._handle_kb_condense_prompt()
+        elif self.current_state == MenuState.KB_CONDENSE_PROCESSING:
+            self._handle_kb_condense_processing()
 
     def _handle_main_menu(self) -> None:
         """
@@ -573,7 +585,7 @@ class MenuSystem:
         self._transition_to(MenuState.TOC_PROMPT)
         # --- END MODIFIED PART ---
 
-    # --- NEW PLACEHOLDER HANDLERS ---
+    # --- TOC HANDLERS ---
 
     def _handle_toc_prompt(self) -> None:
         """
@@ -652,7 +664,7 @@ class MenuSystem:
             self._transition_to(MenuState.KB_PROMPT)
 
 
-    def _save_content_to_file(self, content: str, target_path: Path) -> bool:
+    def _save_content_to_file(self, content: str, target_path: Path) -> Optional[Path]:
         """
         Save content to a file, handling existing files and potential errors.
 
@@ -661,7 +673,9 @@ class MenuSystem:
             target_path: The Path object representing the desired save location.
 
         Returns:
-            bool: True if the file was saved successfully, False otherwise (including cancellation).
+            Optional[Path]: The Path object of the successfully saved file (which might
+                            be different from target_path if renamed), or None if saving
+                            failed or was cancelled.
         """
         current_target_path = target_path # Keep track of the path we intend to write to
 
@@ -681,14 +695,14 @@ class MenuSystem:
                     else:
                         # Should not happen if prompt_overwrite_rename works correctly, but handle defensively
                         self.console.print("[bold red]Error:[/bold red] Rename chosen but no new filename provided. Save cancelled.")
-                        return False
+                        return None
                 elif choice == "cancel":
                     self.console.print("Save operation cancelled by user.")
-                    return False
+                    return None
                 else:
                     # Should not happen
                     self.console.print(f"[bold red]Error:[/bold red] Unexpected choice '{choice}' from prompt. Save cancelled.")
-                    return False
+                    return None
 
             # Ensure the parent directory exists (might be needed for renamed files too)
             current_target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -696,17 +710,18 @@ class MenuSystem:
             # Write the content to the final target file
             current_target_path.write_text(content, encoding="utf-8")
             logging.info(f"Successfully saved content to {current_target_path}")
-            return True
+            self.console.print(f"[green]Content successfully saved to:[/green] {current_target_path}") # Added success message here
+            return current_target_path # Return the actual path saved
 
         except (IOError, OSError) as e:
             logging.error(f"Failed to save content to {current_target_path}: {e}", exc_info=True)
             self.console.print(f"[bold red]Error saving file {current_target_path}:[/bold red] {e}")
-            return False
+            return None
         except Exception as e:
             # Catch any other unexpected errors during the process
             logging.error(f"An unexpected error occurred during file save to {current_target_path}: {e}", exc_info=True)
             self.console.print(f"[bold red]An unexpected error occurred while saving file {current_target_path}:[/bold red] {e}")
-            return False
+            return None
 
     def _handle_toc_confirm_save(self) -> None:
         """
@@ -753,19 +768,17 @@ class MenuSystem:
                 self.console.print(f"Preparing to save TOC to: {target_path}")
 
                 # Call the enhanced save method
-                save_success = self._save_content_to_file(toc_content, target_path)
+                saved_path = self._save_content_to_file(toc_content, target_path)
 
                 # Handle save result
-                if save_success:
-                    # Message is now printed inside _save_content_to_file or if renamed
-                    # self.console.print(f"[green]TOC saved successfully.[/green]") # Redundant now
-                    pass # Success message handled by save function or rename logic
+                if saved_path:
+                    # Success message handled by save function
+                    pass
                 else:
                     # Failure or cancellation message handled by save function
-                    # self.console.print("[yellow]TOC saving failed or cancelled. Check messages above.[/yellow]") # Redundant now
                     pass
 
-                # Transition to KB prompt regardless of save outcome (unless cancelled, which returns False)
+                # Transition to KB prompt regardless of save outcome
                 self._transition_to(MenuState.KB_PROMPT)
 
             except Exception as e:
@@ -784,6 +797,8 @@ class MenuSystem:
                 # User doesn't want to retry
                 self.console.print("Skipping TOC generation retry.")
                 self._transition_to(MenuState.KB_PROMPT)
+
+    # --- KB HANDLERS ---
 
     def _ask_convert_another(self) -> None:
         """
@@ -885,9 +900,9 @@ class MenuSystem:
         Handle confirming and saving the generated Knowledge Base (KB).
 
         Retrieves generated KB content and output directory from user_data,
-        creates a preview, asks for confirmation, and either saves the file
-        or asks if the user wants to retry generation. Then transitions to
-        the appropriate next state (ask to convert another or retry).
+        creates a preview, asks for confirmation, saves the file (handling overwrite/rename),
+        stores the final KB path in user_data, and transitions to the KB condensation prompt.
+        If saving is declined or fails, it handles retries or transitions appropriately.
         """
         display_section_header("Save Knowledge Base", console=self.console)
 
@@ -915,48 +930,127 @@ class MenuSystem:
         if len(kb_content.splitlines()) > 50:
             preview += "\n[italic](... preview truncated ...)[/italic]"
 
+        # Determine the default target path
+        try:
+            output_dir = Path(output_dir_str)
+            default_target_path = output_dir / "knowledge_base.md"
+        except Exception as e:
+            logging.error(f"Error creating default KB path from '{output_dir_str}': {e}", exc_info=True)
+            self.console.print(f"[bold red]Error determining default save path for KB:[/bold red] {e}")
+            self._ask_convert_another() # Ask to continue/exit on error
+            return
+
         # Ask user whether to save
         if prompt_save_confirmation(preview, console=self.console):
-            # User confirmed save - determine target path
-            try:
-                output_dir = Path(output_dir_str)
-                # Save KB as Markdown
-                target_path = output_dir / "knowledge_base.md" # CHANGED EXTENSION
+            # User confirmed save
+            self.console.print(f"Preparing to save KB to: {default_target_path}")
 
-                self.console.print(f"Preparing to save KB to: {target_path}")
+            # Call the enhanced save method
+            saved_kb_path = self._save_content_to_file(kb_content, default_target_path)
 
-                # Call the enhanced save method
-                save_success = self._save_content_to_file(kb_content, target_path)
-
-                # Handle save result
-                if save_success:
-                    # Success message handled by save function or rename logic
-                    pass
-                else:
-                    # Failure or cancellation message handled by save function
-                    pass
-
-                # After attempting save (success or handled failure), ask to convert another
+            # Handle save result
+            if saved_kb_path:
+                # Store the actual saved path (might be renamed)
+                self.user_data['kb_file_path'] = saved_kb_path
+                # Transition to condensation prompt
+                self._transition_to(MenuState.KB_CONDENSE_PROMPT)
+            else:
+                # Save failed or was cancelled by user during overwrite/rename prompt
+                self.console.print("[yellow]KB saving failed or was cancelled.[/yellow]")
+                # Ask to convert another, as condensation requires the file
                 self._ask_convert_another()
 
-            except Exception as e:
-                logging.error(f"Error preparing to save KB: {e}", exc_info=True)
-                self.console.print(f"[bold red]Error preparing to save KB:[/bold red] {e}")
-                self._ask_convert_another() # Ask to continue/exit even on error
         else:
-            # User declined to save - ask about retrying
+            # User declined to save initially - ask about retrying generation
             self.console.print("Save confirmation declined by user.")
 
             if prompt_retry_generation("KB generation", console=self.console):
-                # User wants to retry
+                # User wants to retry generation
                 self.console.print("Retrying KB generation...")
                 self._transition_to(MenuState.KB_PROCESSING)
             else:
-                # User doesn't want to retry
-                self.console.print("Skipping KB generation retry.")
+                # User doesn't want to retry generation, but we still have the content.
+                # Store the *intended* path so condensation *might* still work if the file
+                # somehow exists from a previous run (less likely, but allows the flow).
+                # Or, maybe we should just skip condensation if they decline saving?
+                # Let's skip condensation if they decline saving the KB.
+                self.console.print("Skipping KB generation retry and condensation as save was declined.")
                 self._ask_convert_another() # Ask to continue/exit
 
-    # --- END NEW PLACEHOLDER HANDLERS ---
+    # --- KB CONDENSE HANDLERS ---
+
+    def _handle_kb_condense_prompt(self) -> None:
+        """
+        Handle prompting the user whether to condense the generated Knowledge Base.
+        """
+        display_section_header("Condense Knowledge Base", console=self.console)
+
+        # Check if we have a KB file path from the previous step
+        kb_file_path_obj = self.user_data.get('kb_file_path')
+        if not kb_file_path_obj or not isinstance(kb_file_path_obj, Path):
+            self.console.print("[bold yellow]Warning:[/bold yellow] Knowledge base file path not found or invalid. Skipping condensation.")
+            logging.warning("kb_file_path missing or not a Path object in user_data for condensation prompt.")
+            self._ask_convert_another()
+            return
+
+        # Check if the file actually exists (it should if save was successful)
+        if not kb_file_path_obj.is_file():
+             self.console.print(f"[bold yellow]Warning:[/bold yellow] Knowledge base file '{kb_file_path_obj}' not found. Skipping condensation.")
+             logging.warning(f"KB file '{kb_file_path_obj}' not found before asking for condensation.")
+             self._ask_convert_another()
+             return
+
+        self.console.print("\nYou can now optionally condense the generated Knowledge Base file")
+        self.console.print(f"('{kb_file_path_obj.name}') using an LLM.")
+        self.console.print("This creates a more concise version focused on key information.")
+
+        # Ask if user wants to condense using a generic confirmation prompt
+        if prompt_for_continue("Condense the Knowledge Base?", console=self.console):
+            self._transition_to(MenuState.KB_CONDENSE_PROCESSING)
+        else:
+            self.console.print("Skipping Knowledge Base condensation.")
+            self._ask_convert_another()
+
+    def _handle_kb_condense_processing(self) -> None:
+        """
+        Handle the Knowledge Base (KB) condensation process using the condenser function.
+        """
+        display_section_header("Condensing Knowledge Base", console=self.console)
+
+        # Retrieve the KB file path from user data
+        kb_file_path = self.user_data.get('kb_file_path')
+        if not kb_file_path or not isinstance(kb_file_path, Path):
+            self.console.print("[bold red]Error:[/bold red] Knowledge base file path not found in user data. Cannot condense.")
+            logging.error("kb_file_path missing or invalid in user_data during KB condensation processing.")
+            self._ask_convert_another()
+            return
+
+        condensed_kb_path: Optional[Path] = None
+        try:
+            # Use spinner while calling the condenser function
+            with display_spinner(f"Calling LLM to condense '{kb_file_path.name}'...", console=self.console) as spinner:
+                # Call the condense_knowledge_base function
+                condensed_kb_path = condense_knowledge_base(kb_file_path)
+
+                if condensed_kb_path:
+                    spinner.succeed(f"KB condensation successful. Output: {condensed_kb_path.name}")
+                else:
+                    # condense_knowledge_base logs errors internally, so just fail spinner
+                    spinner.fail("KB condensation failed. Check logs for details.")
+
+        except Exception as e:
+            # Catch unexpected errors during the call or context management
+            logging.error(f"An unexpected error occurred during KB condensation: {e}", exc_info=True)
+            self.console.print(f"\n[bold red]An unexpected error occurred during condensation: {e}[/bold red]")
+            condensed_kb_path = None # Ensure path is None on error
+
+        # Store the path of the condensed file (or None if failed)
+        self.user_data['condensed_kb_file_path'] = condensed_kb_path
+
+        # Always transition to ask if user wants to convert another item
+        self._ask_convert_another()
+
+    # --- END KB CONDENSE HANDLERS ---
 
     def _transition_to(self, new_state: MenuState, clear_history: bool = False) -> None:
         """
