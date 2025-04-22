@@ -26,8 +26,6 @@ except ImportError:
         def invoke(self, *args: Any, **kwargs: Any) -> Optional[str]:
             raise NotImplementedError("LLM client is not available because 'litellm' is not installed.")
 
-from kb_for_prompt.atoms.error_utils import FileIOError, KbForPromptError
-
 # Configure logging
 # Consider moving configuration to a central place if the application grows
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [%(name)s] %(message)s')
