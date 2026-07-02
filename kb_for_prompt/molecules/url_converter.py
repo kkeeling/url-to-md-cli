@@ -22,7 +22,7 @@ Example:
 """
 
 import time
-from typing import Tuple, Optional, Dict, Any
+from typing import Tuple
 import requests
 
 # Import docling for document conversion
@@ -97,7 +97,7 @@ def convert_url_to_markdown(
                 }
                 
                 raise ConversionError(
-                    message=f"Failed to convert URL to document",
+                    message="Failed to convert URL to document",
                     input_path=url,
                     conversion_type="url",
                     details=error_details

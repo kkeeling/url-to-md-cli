@@ -13,11 +13,9 @@
 
 """Unit tests for the PDF document converter module."""
 
-import os
 import sys
-import time
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 import pytest
 
 # Add project root to Python path to ensure imports work properly

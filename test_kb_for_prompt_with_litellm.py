@@ -11,7 +11,6 @@ are set before running this script if required by your LiteLLM configuration.
 """
 
 import logging
-import os
 from rich.console import Console
 
 # Assuming the script is run from the root directory where kb_for_prompt package resides
@@ -66,7 +65,7 @@ def run_test():
     # We are not running the menu system's interactive loop here, just showing setup.
     try:
         logging.info("Initializing MenuSystem with the LLM client...")
-        menu_system = MenuSystem(console=console, llm_client=llm_client)
+        MenuSystem(console=console, llm_client=llm_client)
         logging.info("MenuSystem initialized successfully.")
         # In a full application, you would call menu_system.run() here.
     except Exception as e:

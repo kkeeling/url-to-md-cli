@@ -22,19 +22,18 @@ extraction and conversion works correctly with existing single item
 and batch conversion workflows.
 """
 
-import os
 import csv
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch
 
-import pytest
+import pytest  # noqa: F401
 from rich.console import Console
 
+from kb_for_prompt.atoms.error_utils import ConversionError  # noqa: F401
 from kb_for_prompt.organisms.single_item_converter import SingleItemConverter
 from kb_for_prompt.organisms.batch_converter import BatchConverter
-from kb_for_prompt.atoms.error_utils import ConversionError
-from youtube_transcript_api import TranscriptsDisabled, NoTranscriptFound
+from youtube_transcript_api import TranscriptsDisabled
 
 
 class TestYouTubeIntegration:

@@ -20,12 +20,9 @@ ensuring proper CSV parsing, input validation, concurrent processing,
 and error handling.
 """
 
-import os
 import csv
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch, mock_open
-import pandas as pd
 import pytest
 from rich.console import Console
 
@@ -314,7 +311,7 @@ class TestBatchConverter:
             with patch('kb_for_prompt.organisms.batch_converter.generate_output_filename') as mock_generate:
                 mock_generate.return_value = Path('/output/dir/example_com.md')
                 
-                with patch('builtins.open', mock_open()) as mock_file:
+                with patch('builtins.open', mock_open()):
                     # Call the method under test
                     result = self.batch_converter._process_single_input(input_data, Path('/output/dir'))
         
@@ -342,7 +339,7 @@ class TestBatchConverter:
             with patch('kb_for_prompt.organisms.batch_converter.generate_output_filename') as mock_generate:
                 mock_generate.return_value = Path('/output/dir/document.md')
                 
-                with patch('builtins.open', mock_open()) as mock_file:
+                with patch('builtins.open', mock_open()):
                     # Call the method under test
                     result = self.batch_converter._process_single_input(input_data, Path('/output/dir'))
         
@@ -370,7 +367,7 @@ class TestBatchConverter:
             with patch('kb_for_prompt.organisms.batch_converter.generate_output_filename') as mock_generate:
                 mock_generate.return_value = Path('/output/dir/document.md')
                 
-                with patch('builtins.open', mock_open()) as mock_file:
+                with patch('builtins.open', mock_open()):
                     # Call the method under test
                     result = self.batch_converter._process_single_input(input_data, Path('/output/dir'))
         

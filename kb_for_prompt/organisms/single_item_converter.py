@@ -20,37 +20,28 @@ for URLs and local files (PDF, DOC, DOCX). It implements input detection,
 file handling, conversion, and retry mechanisms with appropriate user feedback.
 """
 
-import os
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union, Any, Callable
+from typing import Dict, Optional, Tuple, Union, Any
 from rich.console import Console
 
 # Import core converters
 from kb_for_prompt.molecules.url_converter import convert_url_to_markdown
 from kb_for_prompt.molecules.doc_converter import convert_doc_to_markdown
 from kb_for_prompt.molecules.pdf_converter import convert_pdf_to_markdown
-from kb_for_prompt.molecules.youtube_converter import YouTubeConverter, convert_youtube_to_markdown
+from kb_for_prompt.molecules.youtube_converter import YouTubeConverter
 
 # Import LLM client for YouTube converter
 from kb_for_prompt.organisms.llm_client import LiteLlmClient, SimpleLlmClient
 
 # Import utilities
 from kb_for_prompt.atoms.type_detector import (
-    detect_input_type,
-    detect_file_type,
-    is_url,
-    is_file_path,
     is_youtube_url
 )
 from kb_for_prompt.atoms.path_utils import (
-    generate_output_filename,
-    ensure_directory_exists,
-    resolve_path
+    ensure_directory_exists
 )
 from kb_for_prompt.atoms.input_validator import (
     validate_input_item,
-    validate_url,
-    validate_file_path,
     validate_file_type
 )
 from kb_for_prompt.atoms.error_utils import (
@@ -67,7 +58,6 @@ from kb_for_prompt.templates.progress import (
 )
 from kb_for_prompt.templates.prompts import (
     prompt_for_retry,
-    prompt_for_file,
     prompt_for_output_directory
 )
 
@@ -371,7 +361,7 @@ class SingleItemConverter:
                     f"Converting {input_type} to Markdown...",
                     success_text=f"Successfully converted {input_type} to Markdown",
                     console=self.console
-                ) as spinner:
+                ):
                     # Choose the appropriate converter based on input type
                     if input_type == "url":
                         # Check if it's a YouTube URL

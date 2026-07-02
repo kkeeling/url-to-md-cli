@@ -18,7 +18,7 @@ including success/failure counts and tables with detailed information.
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from rich.console import Console
@@ -55,9 +55,9 @@ def display_conversion_summary(
     summary_text = Text()
     summary_text.append("Conversion Summary\n", style="bold")
     summary_text.append(f"Total items processed: {total}\n")
-    summary_text.append(f"Successfully converted: ", style="green")
+    summary_text.append("Successfully converted: ", style="green")
     summary_text.append(f"{len(successful)} ({success_rate:.1f}%)\n")
-    summary_text.append(f"Failed conversions: ", style="red")
+    summary_text.append("Failed conversions: ", style="red")
     summary_text.append(f"{len(failed)} ({100-success_rate:.1f}%)\n")
     summary_text.append(f"Output directory: {output_dir}")
     

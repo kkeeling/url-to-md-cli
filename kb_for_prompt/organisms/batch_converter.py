@@ -20,44 +20,35 @@ This module provides functionality to handle batch conversion of multiple inputs
 input validation, and provides detailed summary reporting.
 """
 
-import os
 import csv
-import time
 import concurrent.futures
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, Any, Set
 from concurrent.futures import ThreadPoolExecutor
-import pandas as pd
 from rich.console import Console
 
 # Import core converters
 from kb_for_prompt.molecules.url_converter import convert_url_to_markdown
 from kb_for_prompt.molecules.doc_converter import convert_doc_to_markdown
 from kb_for_prompt.molecules.pdf_converter import convert_pdf_to_markdown
-from kb_for_prompt.molecules.youtube_converter import YouTubeConverter, convert_youtube_to_markdown
+from kb_for_prompt.molecules.youtube_converter import YouTubeConverter
 
 # Import LLM client for YouTube converter
 from kb_for_prompt.organisms.llm_client import LiteLlmClient, SimpleLlmClient
 
 # Import utilities
 from kb_for_prompt.atoms.type_detector import (
-    detect_input_type,
     detect_file_type,
     is_url,
-    is_file_path,
     is_youtube_url
 )
 from kb_for_prompt.atoms.path_utils import (
     generate_output_filename,
-    ensure_directory_exists,
-    resolve_path
+    ensure_directory_exists
 )
 from kb_for_prompt.atoms.input_validator import (
     validate_input_item,
-    validate_url,
-    validate_file_path,
-    validate_file_type,
-    validate_directory_path
+    validate_file_path
 )
 from kb_for_prompt.atoms.error_utils import (
     ConversionError,
@@ -69,12 +60,10 @@ from kb_for_prompt.atoms.error_utils import (
 from kb_for_prompt.templates.progress import (
     display_spinner,
     display_processing_update,
-    display_completion,
     display_progress_bar
 )
 from kb_for_prompt.templates.summary import (
-    display_conversion_summary,
-    display_dataframe_summary
+    display_conversion_summary
 )
 
 

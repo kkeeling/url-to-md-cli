@@ -26,8 +26,7 @@ Example:
 
 import time
 import re
-from typing import Dict, Any, Optional, Tuple
-import requests
+from typing import Dict, Any, Tuple
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 
 # Import LLM client and utilities

@@ -15,11 +15,7 @@
 Tests for the prompt template functions in kb_for_prompt/templates/prompts.py.
 """
 
-import pytest
 from unittest.mock import patch, MagicMock
-from typing import Optional, Tuple
-from rich.console import Console
-from rich.panel import Panel
 
 from kb_for_prompt.templates.prompts import (
     prompt_for_toc_generation,

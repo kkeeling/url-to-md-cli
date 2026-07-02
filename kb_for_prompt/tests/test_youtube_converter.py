@@ -26,7 +26,7 @@ Tests for kb_for_prompt.molecules.youtube_converter module.
 import os
 import sys
 import pytest
-from unittest.mock import patch, MagicMock, Mock
+from unittest.mock import patch, MagicMock
 
 # Add the project root directory to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -35,9 +35,7 @@ from kb_for_prompt.molecules.youtube_converter import YouTubeConverter, convert_
 from kb_for_prompt.atoms.type_detector import is_youtube_url
 from kb_for_prompt.atoms.error_utils import ConversionError
 from youtube_transcript_api import (
-    TranscriptsDisabled,
-    NoTranscriptFound,
-    TranscriptList
+    TranscriptsDisabled
 )
 
 

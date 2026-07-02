@@ -19,10 +19,9 @@ This module contains tests for the SingleItemConverter class, which
 handles the conversion of single URLs or files to Markdown format.
 """
 
-import os
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch, ANY
+from unittest.mock import MagicMock, patch
 
 import pytest
 from rich.console import Console

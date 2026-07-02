@@ -9,7 +9,7 @@ managing output directories.
 import os
 from pathlib import Path
 from typing import Union, Optional
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urlparse
 
 from kb_for_prompt.atoms.error_utils import FileIOError
 

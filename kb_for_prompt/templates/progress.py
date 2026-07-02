@@ -17,9 +17,8 @@ This module provides functions for displaying progress bars, spinners, and
 status updates during conversion processes using the Rich library and Halo.
 """
 
-import time
 from contextlib import contextmanager
-from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
+from typing import Generator, Optional
 
 from rich.console import Console
 from rich.progress import (

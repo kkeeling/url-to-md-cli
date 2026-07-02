@@ -17,12 +17,10 @@ This module provides functions for displaying menus, input prompts, and
 confirmation dialogs using the Rich library and Click.
 """
 
-import os
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union, Any
+from typing import List, Optional, Tuple
 
-import click
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table

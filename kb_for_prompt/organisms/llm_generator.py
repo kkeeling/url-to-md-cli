@@ -2,7 +2,6 @@
 Module for generating LLM-friendly XML from markdown files and using LLMs for generation tasks.
 """
 
-import os
 import xml.etree.ElementTree as ET
 import logging
 from pathlib import Path
@@ -88,7 +87,6 @@ class LlmGenerator:
             raise NotADirectoryError(f"Path is not a directory: {directory_path}")
 
         root = ET.Element("documents")
-        found_files = False
 
         try:
             # Use rglob to find all .md files recursively
@@ -102,7 +100,6 @@ class LlmGenerator:
                         doc_element.set("path", str(relative_path).replace("\\", "/")) # Ensure consistent path separators
                         # Set text content, ensuring empty strings are preserved
                         doc_element.text = content if content else ""
-                        found_files = True
                     except (IOError, OSError, UnicodeDecodeError) as e:
                         # Handle file reading errors gracefully by skipping the file
                         self.console.print(f"[warning]Skipping file '{relative_path}' due to error: {e}[/warning]")

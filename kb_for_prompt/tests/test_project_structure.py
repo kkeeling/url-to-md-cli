@@ -3,8 +3,6 @@ Tests for project structure initialization.
 """
 
 import os
-import importlib.util
-import sys
 from pathlib import Path
 
 

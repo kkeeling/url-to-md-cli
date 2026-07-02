@@ -6,7 +6,6 @@ import xml.etree.ElementTree as ET
 
 # Import rich here, as LlmGenerator uses it
 pytest.importorskip("rich")
-from rich.console import Console # noqa: E402 - Import after importorskip
 
 # Import the specific component being tested
 from kb_for_prompt.organisms.llm_generator import LlmGenerator, TEMPLATE_DIR # noqa: E402

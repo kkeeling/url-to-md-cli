@@ -2,7 +2,6 @@
 Tests for error_utils.py
 """
 
-import pytest
 from kb_for_prompt.atoms.error_utils import (
     KbForPromptError, 
     ValidationError, 

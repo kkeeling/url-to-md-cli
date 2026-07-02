@@ -21,16 +21,15 @@ Example:
     ```
 """
 
-import os
 import time
 from pathlib import Path
-from typing import Union, Tuple, Optional, Dict, Any
+from typing import Union, Tuple
 
 # Import docling for document conversion
 from docling.document_converter import DocumentConverter
 
 # Import utility functions
-from kb_for_prompt.atoms.error_utils import ConversionError, ValidationError
+from kb_for_prompt.atoms.error_utils import ConversionError
 from kb_for_prompt.atoms.input_validator import validate_file_path, validate_file_type
 from kb_for_prompt.atoms.path_utils import create_file_url
 

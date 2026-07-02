@@ -1,16 +1,13 @@
 import unittest
-from unittest.mock import patch, MagicMock, call, ANY
+from unittest.mock import patch, MagicMock, call
 from pathlib import Path
 import logging # Import logging
-import io # Import io for mocking write errors
 import tempfile # Import tempfile for safer test directories
 import shutil # Import shutil for cleaning up test directories
-import os # Import os for path operations if needed
 
 # Assume menu_system.py is in the same directory or accessible via PYTHONPATH
 # Adjust the import path based on your project structure
 import sys
-from pathlib import Path
 
 # Try the standard import path first
 try:
@@ -620,7 +617,6 @@ class TestMenuSystemAskConvertAnother(unittest.TestCase):
     def test_ask_convert_another_yes(self, mock_prompt_continue):
         """Test _ask_convert_another when user says yes."""
         mock_prompt_continue.return_value = True
-        initial_user_data = self.menu.user_data.copy() # Keep a copy
 
         self.menu._ask_convert_another()
 

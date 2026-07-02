@@ -2,9 +2,7 @@
 Tests for type_detector.py
 """
 
-import pytest
 from pathlib import Path
-from unittest.mock import patch
 
 from kb_for_prompt.atoms.type_detector import (
     detect_input_type,

@@ -39,7 +39,7 @@ Usage:
 import os
 import sys
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 # Add the parent directory to sys.path
 # This allows importing modules from the kb_for_prompt package
@@ -166,12 +166,12 @@ def handle_direct_conversion(
 
         # Print summary from results
         if success:
-            console.print(f"[bold green]✓ Batch conversion completed successfully.[/bold green]")
+            console.print("[bold green]✓ Batch conversion completed successfully.[/bold green]")
             console.print(f"  Total items processed: {result.get('total', 0)}")
             console.print(f"  Successful conversions: {len(result.get('successful', []))}")
             console.print(f"  Failed conversions: {len(result.get('failed', []))}")
         else:
-            console.print(f"[bold red]✗ Batch conversion failed or partially failed.[/bold red]")
+            console.print("[bold red]✗ Batch conversion failed or partially failed.[/bold red]")
             error_info = result.get('error', {})
             if error_info:
                  console.print(f"  Error Type: {error_info.get('type', 'Unknown')}")
@@ -196,7 +196,7 @@ def handle_direct_conversion(
         # Print summary from results
         if success:
             original_conversion_success = True # Mark initial conversion as successful
-            console.print(f"[bold green]✓ Conversion successful.[/bold green]")
+            console.print("[bold green]✓ Conversion successful.[/bold green]")
             console.print(f"  Output file: [cyan]{result.get('output_path', 'N/A')}[/cyan]")
 
             # --- Condensation Step ---
@@ -209,23 +209,14 @@ def handle_direct_conversion(
                         condensed_file_path: Optional[Path] = None
 
                         spinner_text = f"Condensing knowledge base: {original_kb_path.name}"
-                        with display_spinner(text=spinner_text, console=console) as spinner:
-                            try:
-                                # Call the condensation function
-                                condensed_file_path = condense_knowledge_base(original_kb_path)
-                                # Update spinner text upon completion (handled by context manager on success/fail)
-                            except Exception as condense_e:
-                                # display_spinner handles logging the failure text
-                                console.print(f"[bold red]An unexpected error occurred during condensation:[/bold red] {str(condense_e)}")
-                                # No need to re-raise, spinner handles fail state
+                        with display_spinner(text=spinner_text, console=console):
+                            condensed_file_path = condense_knowledge_base(original_kb_path)
 
-                        # Check result and print messages
                         if condensed_file_path:
-                            console.print(f"[bold green]✓ Condensation successful.[/bold green]")
+                            console.print("[bold green]✓ Condensation successful.[/bold green]")
                             console.print(f"  Condensed file: [cyan]{condensed_file_path}[/cyan]")
                         else:
-                            # condense_knowledge_base logs specific errors, so just indicate failure here
-                            console.print(f"[bold red]✗ Condensation failed.[/bold red] Check logs for details.")
+                            console.print("[bold red]✗ Condensation failed.[/bold red] Check logs for details.")
 
                 except Exception as e:
                     console.print(f"\n[bold red]An error occurred during the condensation prompt or process:[/bold red] {str(e)}")
@@ -234,7 +225,7 @@ def handle_direct_conversion(
             # --- End Condensation Step ---
 
         else:
-            console.print(f"[bold red]✗ Conversion failed.[/bold red]")
+            console.print("[bold red]✗ Conversion failed.[/bold red]")
             error_info = result.get('error', {})
             if error_info:
                  console.print(f"  Error Type: {error_info.get('type', 'Unknown')}")

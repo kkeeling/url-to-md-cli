@@ -26,7 +26,6 @@ import sys
 import pytest
 import requests
 from unittest.mock import patch, MagicMock
-from urllib.error import URLError
 
 # Add the project root directory to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))

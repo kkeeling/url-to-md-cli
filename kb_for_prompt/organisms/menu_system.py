@@ -18,11 +18,10 @@ and handle user inputs with robust error recovery. It implements a state-based
 navigation flow with history tracking to enable going back to previous states.
 """
 
-import sys
 import logging # Added import
 from enum import Enum, auto
 from pathlib import Path # Added import
-from typing import Dict, List, Optional, Tuple, Union, Any, Callable
+from typing import Dict, Optional, Any
 from rich.console import Console
 
 # Import menu components from templates
@@ -31,10 +30,8 @@ from kb_for_prompt.templates.prompts import (
     display_main_menu,
     prompt_for_url,
     prompt_for_file,
-    prompt_for_directory,
     prompt_for_output_directory,
     prompt_for_continue, # Keep for potential future use
-    prompt_for_retry,
     prompt_for_toc_generation, # Import new prompts
     prompt_for_kb_generation,
     prompt_save_confirmation,
@@ -366,7 +363,6 @@ class MenuSystem:
         """
         display_section_header("Output Directory", console=self.console)
         # Import prompt functions needed
-        from kb_for_prompt.templates.prompts import prompt_for_output_directory
 
         try:
             # Get output directory from user
@@ -535,13 +531,13 @@ class MenuSystem:
 
             # Display summary
             if success:
-                self.console.print(f"\n[bold green]✓ Batch Conversion Completed[/bold green]")
+                self.console.print("\n[bold green]✓ Batch Conversion Completed[/bold green]")
                 self.console.print(f"Total inputs: [cyan]{total}[/cyan]")
                 self.console.print(f"Successfully converted: [green]{len(successful)}[/green]")
                 self.console.print(f"Failed conversions: [yellow]{len(failed)}[/yellow]")
                 self.console.print(f"Output directory: [cyan]{output_dir_res}[/cyan]")
             else:
-                self.console.print(f"\n[bold red]✗ Batch Conversion Failed[/bold red]")
+                self.console.print("\n[bold red]✗ Batch Conversion Failed[/bold red]")
                 if total > 0:
                     self.console.print(f"Total inputs: [cyan]{total}[/cyan]")
                     self.console.print(f"Successfully converted: [green]{len(successful)}[/green]")
@@ -565,11 +561,11 @@ class MenuSystem:
                 error = results.get("error")
 
                 if success:
-                    self.console.print(f"\n[bold green]✓ Conversion Successful[/bold green]")
+                    self.console.print("\n[bold green]✓ Conversion Successful[/bold green]")
                     self.console.print(f"Input: [cyan]{input_path}[/cyan]")
                     self.console.print(f"Output: [cyan]{output_path_res}[/cyan]")
                 else:
-                    self.console.print(f"\n[bold red]✗ Conversion Failed[/bold red]")
+                    self.console.print("\n[bold red]✗ Conversion Failed[/bold red]")
                     self.console.print(f"Input: [cyan]{input_path}[/cyan]")
                     if error:
                         self.console.print(f"Error type: [yellow]{error.get('type', 'unknown')}[/yellow]")

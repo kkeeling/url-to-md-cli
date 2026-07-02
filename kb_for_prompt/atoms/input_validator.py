@@ -10,10 +10,9 @@ from pathlib import Path
 from typing import Union, Optional, Tuple, List
 from urllib.parse import urlparse
 import requests
-import re
 
 from kb_for_prompt.atoms.error_utils import ValidationError
-from kb_for_prompt.atoms.type_detector import detect_file_type, is_url, is_file_path
+from kb_for_prompt.atoms.type_detector import detect_file_type, is_url
 from kb_for_prompt.atoms.path_utils import resolve_path
 
 

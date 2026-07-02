@@ -18,8 +18,7 @@ and other exception types with appropriate styling using the Rich library.
 """
 
 import sys
-import traceback
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 from rich.console import Console
 from rich.panel import Panel

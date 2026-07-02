@@ -9,9 +9,8 @@
 
 import pytest
 import logging
-from unittest.mock import patch, MagicMock, ANY
-import sys
-from typing import Optional, List, Dict, Any, Type
+from unittest.mock import patch, MagicMock
+from typing import Optional
 
 # --- Test Setup: Handle potential ImportError for litellm ---
 

@@ -5,7 +5,6 @@ This module provides functions to detect input types (URLs vs. local files)
 and file types based on extensions.
 """
 
-import os
 from pathlib import Path
 from typing import Union, Optional, Tuple, Literal
 from urllib.parse import urlparse

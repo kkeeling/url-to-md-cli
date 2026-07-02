@@ -21,7 +21,6 @@ the MenuSystem and SingleItemConverter classes.
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 from rich.console import Console
 
 from kb_for_prompt.organisms.menu_system import MenuSystem, MenuState

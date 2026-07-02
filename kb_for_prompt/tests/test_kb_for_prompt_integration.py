@@ -26,7 +26,6 @@ import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock # Import MagicMock
 
-import pytest
 from click.testing import CliRunner
 
 # Add the parent directory to sys.path to allow importing the main script
